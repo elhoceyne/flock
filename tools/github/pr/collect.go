@@ -234,8 +234,6 @@ func (s *state) loadApprovalInputs(ctx context.Context) error {
 		return err
 	}
 	docs := docsOnly(s.observed.files)
-	reopen := s.observed.gateClosed && s.observed.pullRequest.State == "closed" &&
-		s.event.action == "edited" && s.event.bodyEdited && s.observed.pullRequest.BaseRef == "main"
 	for attempt := 0; ; attempt++ {
 		if err := s.reloadLinks(ctx); err != nil {
 			return err
@@ -244,7 +242,7 @@ func (s *state) loadApprovalInputs(ctx context.Context) error {
 			return err
 		}
 		approved, _ := s.approval()
-		if approved != nil || docs || attempt >= 2 || (s.event.action != "opened" && !reopen) {
+		if approved != nil || docs || attempt >= 2 || (s.event.action != "opened" && !(s.event.action == "edited" && s.event.bodyEdited)) {
 			return nil
 		}
 		if err := wait(ctx, gateRetryDelay); err != nil {

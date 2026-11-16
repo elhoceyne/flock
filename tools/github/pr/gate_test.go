@@ -2,6 +2,7 @@ package pr
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -10,6 +11,52 @@ import (
 
 	"flock/tools/github/contribution"
 )
+
+func TestGateEditedOpenPullRequestRetriesClosingKeywords(t *testing.T) {
+	for _, keyword := range []string{"Fixes", "Closes"} {
+		t.Run(keyword, func(t *testing.T) {
+			t.Parallel()
+			var logs []requestLog
+			graphqlCalls := 0
+			client, closeServer := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				logs = append(logs, requestLog{r.Method, r.URL.Path})
+				switch r.Method + " " + r.URL.Path {
+				case "GET /repos/owner/repo/pulls/1":
+					writeTestJSON(t, w, fmt.Sprintf(`{"number":1,"state":"open","body":"%s #9","base":{"ref":"main"},"user":{"login":"author","type":"User"},"author_association":"CONTRIBUTOR"}`, keyword))
+				case "GET /repos/owner/repo/pulls/1/files":
+					writeTestJSON(t, w, `[{"filename":"internal/file.go"}]`)
+				case "POST /graphql":
+					graphqlCalls++
+					if graphqlCalls == 1 {
+						writeTestJSON(t, w, `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}}`)
+						return
+					}
+					writeTestJSON(t, w, `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9,"repository":{"name":"repo","owner":{"login":"owner"}}}],"pageInfo":{"hasNextPage":false}}}}}}`)
+				case "GET /repos/owner/repo/issues/9":
+					writeTestJSON(t, w, `{"number":9,"state":"open","labels":[{"name":"help wanted"}]}`)
+				case "GET /repos/owner/repo/issues/9/comments":
+					writeTestJSON(t, w, `[]`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer closeServer()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := Gate(ctx, client, "owner", "repo", testPullRequestEvent("edited", 1, true)); err != nil {
+				t.Fatalf("Gate() error = %v", err)
+			}
+			if graphqlCalls != 2 {
+				t.Fatalf("closing-reference requests = %d, want 2", graphqlCalls)
+			}
+			if containsLog(logs, "PATCH", "/repos/owner/repo/pulls/1") ||
+				containsLog(logs, "POST", "/repos/owner/repo/issues/1/comments") {
+				t.Fatalf("Gate() closed an approved pull request: %v", logs)
+			}
+		})
+	}
+}
 
 func TestGateClosedEditWithoutApprovalDoesNotLoop(t *testing.T) {
 	var logs []requestLog
