@@ -7,6 +7,7 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::{tr, tr_noop};
 use crate::paths;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,8 +19,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::NotRunning => write!(f, "Flock is not running"),
-            Error::Server { status, message } if message.is_empty() => write!(f, "Flock answered with HTTP {status}"),
+            Error::NotRunning => f.write_str(tr!("app.not_running")),
+            Error::Server { status, message } if message.is_empty() => f.write_str(&tr!("app.http_status", status = status)),
             Error::Server { message, .. } => write!(f, "{message}"),
         }
     }
@@ -257,15 +258,41 @@ impl Client {
         self.request("DELETE", &format!("/v1/sites/{}", escape(name)), None::<&()>, DEFAULT_TIMEOUT)
     }
 
-    /// Restarts a FrankenPHP site's process, e.g. so Octane's workers load changed code.
+    /// Restarts a FrankenPHP site's process, e.g. so Octane's workers load changed code, or a
+    /// Node.js site's dev server (starting it when it sleeps).
     pub fn restart_site(&self, name: &str) -> Result<Status, Error> {
         self.request("POST", &format!("/v1/sites/{}/restart", escape(name)), None::<&()>, Duration::from_secs(60))
+    }
+
+    /// Puts a Node.js site's dev server to sleep until the site's next visit.
+    pub fn stop_site(&self, name: &str) -> Result<Status, Error> {
+        self.request("POST", &format!("/v1/sites/{}/stop", escape(name)), None::<&()>, Duration::from_secs(60))
+    }
+
+    /// Changes the command that starts a proxy's server (see ProxyCommandChange).
+    pub fn update_proxy(&self, name: &str, change: &ProxyCommandChange) -> Result<Status, Error> {
+        self.request("PATCH", &proxy_path(name), Some(change), CHANGE_TIMEOUT)
+    }
+
+    /// Runs a proxy's command, which starts its server.
+    pub fn start_proxy(&self, name: &str) -> Result<Status, Error> {
+        self.request("POST", &format!("{}/start", proxy_path(name)), None::<&()>, DEFAULT_TIMEOUT)
+    }
+
+    /// Stops the server Flock started for a proxy.
+    pub fn stop_proxy(&self, name: &str) -> Result<Status, Error> {
+        self.request("POST", &format!("{}/stop", proxy_path(name)), None::<&()>, Duration::from_secs(60))
     }
 
     /// Serves <name>.test from upstream (a port, host:port or URL), adding the proxy or changing its
     /// upstream. None for secured keeps the proxy's setting (HTTP for a new one).
     pub fn proxy(&self, name: &str, upstream: &str, secured: Option<bool>) -> Result<Status, Error> {
-        self.request("POST", "/v1/proxies", Some(&ProxyChange::new(name, upstream, secured)), DEFAULT_TIMEOUT)
+        self.add_proxy(&ProxyChange::new(name, upstream, secured))
+    }
+
+    /// Adds a proxy, or changes one, with all it has in one request (see ProxyChange).
+    pub fn add_proxy(&self, change: &ProxyChange) -> Result<Status, Error> {
+        self.request("POST", "/v1/proxies", Some(change), CHANGE_TIMEOUT)
     }
 
     /// Serves a proxy over HTTPS (on) or plain HTTP.
@@ -398,6 +425,11 @@ impl Client {
         self.text(&format!("/v1/logs/services/{}?lines={lines}", escape(name)))
     }
 
+    /// Empties a service's log, such as a dev server's output.
+    pub fn clear_service_log(&self, name: &str) -> Result<(), Error> {
+        self.send("DELETE", &format!("/v1/logs/services/{}", escape(name)), None::<&()>, DEFAULT_TIMEOUT).map(|_| ())
+    }
+
     /// A site's Laravel log entries, newest first.
     pub fn site_log(&self, name: &str) -> Result<Vec<LogEntry>, Error> {
         self.request::<_, Option<Vec<LogEntry>>>("GET", &format!("/v1/logs/sites/{}", escape(name)), None::<&()>, DEFAULT_TIMEOUT)
@@ -478,7 +510,8 @@ impl Client {
         timeout: Duration,
     ) -> Result<T, Error> {
         let bytes = self.send(method, path, body, timeout)?;
-        serde_json::from_slice(&bytes).map_err(|e| Error::Server { status: 200, message: format!("unexpected answer from Flock: {e}") })
+        serde_json::from_slice(&bytes)
+            .map_err(|e| Error::Server { status: 200, message: tr!("app.unexpected_answer_from_flock_error", error = e) })
     }
 
     /// A plain-text answer, such as an install log.
@@ -531,18 +564,57 @@ fn proxy_path(name: &str) -> String {
     format!("/v1/proxies/{}", escape(name))
 }
 
-/// POST /v1/proxies: secured is left out to keep an existing proxy's setting.
+/// POST /v1/proxies: secured is left out to keep an existing proxy's setting, and so are the
+/// commands unless the proxy gets some (see with_commands).
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct ProxyChange {
     pub name: String,
     pub upstream: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secured: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_command: Option<String>,
 }
 
 impl ProxyChange {
     pub fn new(name: &str, upstream: &str, secured: Option<bool>) -> Self {
-        Self { name: name.to_owned(), upstream: upstream.to_owned(), secured }
+        Self { name: name.to_owned(), upstream: upstream.to_owned(), secured, command: None, dir: None, stop_command: None }
+    }
+
+    /// Gives the proxy the commands that start and stop its server; without a start command it
+    /// gets none.
+    pub fn with_commands(mut self, commands: ProxyCommandChange) -> Self {
+        if !commands.command.is_empty() {
+            self.command = Some(commands.command);
+            self.dir = commands.dir;
+            self.stop_command = Some(commands.stop_command);
+        }
+        self
+    }
+}
+
+/// PATCH /v1/proxies/{name}: the command that starts the proxy's server, its folder and the
+/// command that stops it. An empty command removes all three.
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
+pub struct ProxyCommandChange {
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dir: Option<String>,
+    pub stop_command: String,
+}
+
+impl ProxyCommandChange {
+    pub fn new(command: &str, dir: &str, stop_command: &str) -> Self {
+        let command = command.trim();
+        if command.is_empty() {
+            return Self::default();
+        }
+        let dir = dir.trim();
+        Self { command: command.to_owned(), dir: (!dir.is_empty()).then(|| dir.to_owned()), stop_command: stop_command.trim().to_owned() }
     }
 }
 
@@ -623,8 +695,13 @@ impl Status {
 }
 
 /// The kinds of events Flock captures besides dumps, in the order the apps list them.
-pub const EVENT_KINDS: [(&str, &str); 5] =
-    [("query", "Queries"), ("log", "Logs"), ("view", "Views"), ("job", "Jobs"), ("request", "Requests")];
+pub const EVENT_KINDS: [(&str, &str); 5] = [
+    ("query", tr_noop!("dumps.event_kind.queries")),
+    ("log", tr_noop!("dumps.event_kind.logs")),
+    ("view", tr_noop!("dumps.event_kind.views")),
+    ("job", tr_noop!("dumps.event_kind.jobs")),
+    ("request", tr_noop!("dumps.event_kind.requests")),
+];
 
 /// GET /v1/config (api.ConfigView): config.json plus the installed versions.
 #[derive(Deserialize, Debug, Clone, PartialEq, Default)]
@@ -682,9 +759,9 @@ impl Job {
     /// "Downloading… 42%", "Downloading…" (size unknown) or "Installing…".
     pub fn text(&self) -> String {
         match self.phase.as_str() {
-            "installing" => "Installing…".to_owned(),
-            _ if (0.0..=1.0).contains(&self.progress) => format!("Downloading… {}%", (self.progress * 100.0).round()),
-            _ => "Downloading…".to_owned(),
+            "installing" => tr!("common.installing").to_owned(),
+            _ if (0.0..=1.0).contains(&self.progress) => tr!("php.downloading_percent", percent = (self.progress * 100.0).round()),
+            _ => tr!("common.downloading").to_owned(),
         }
     }
 }
@@ -1098,12 +1175,22 @@ pub struct SiteStatus {
     pub worker: String,
     pub octane_available: bool,
     pub frankenphp: Option<SiteFrankenPhp>,
+    /// php or node; older daemons send none, which means php.
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// A Node.js site's dev server.
+    pub node_server: Option<SiteNodeServer>,
     /// "", missing, current, outdated or custom.
     pub boost: String,
     pub share: Option<ShareStatus>,
 }
 
 impl SiteStatus {
+    /// A Node.js app whose dev server Flock runs, rather than a PHP site.
+    pub fn is_node(&self) -> bool {
+        self.kind == "node"
+    }
+
     pub fn shared(&self) -> bool {
         self.share.as_ref().is_some_and(|s| !s.url.is_empty())
     }
@@ -1189,7 +1276,86 @@ pub struct SiteFrankenPhp {
     pub log: String,
 }
 
-/// A name served by a server of its own rather than by PHP, e.g. a Node.js dev server: every
+/// A Node.js site's dev server, which Flock starts on the site's first visit.
+#[derive(Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct SiteNodeServer {
+    /// sleeping, starting, running or failed.
+    pub state: String,
+    pub port: u16,
+    pub command: String,
+    pub problem: String,
+    /// The service log with its output.
+    pub log: String,
+}
+
+impl SiteNodeServer {
+    /// "Sleeping · starts on the next visit", "Starting…", "Running on port 22080" or "Stopped: …".
+    pub fn text(&self) -> String {
+        match self.state.as_str() {
+            "sleeping" => tr!("sites.server.sleeping").to_owned(),
+            "starting" => tr!("worktrees.job.starting").to_owned(),
+            "running" => tr!("sites.server.running_on_port", port = self.port),
+            _ if self.problem.is_empty() => tr!("services.postgres.stopped").to_owned(),
+            _ => tr!("sites.server.stopped_because", problem = self.problem),
+        }
+    }
+
+    /// A problem worth showing under the state: the failed state says it already.
+    pub fn note(&self) -> Option<&str> {
+        (self.state != "failed" && !self.problem.is_empty()).then_some(self.problem.as_str())
+    }
+
+    /// Its output changes while it starts or runs.
+    pub fn live(&self) -> bool {
+        matches!(self.state.as_str(), "starting" | "running")
+    }
+}
+
+/// The command that starts a proxy's server, and how that went.
+#[derive(Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct ProxyCommand {
+    pub command: String,
+    pub dir: String,
+    /// Set when the command starts the server in the background.
+    pub stop_command: String,
+    /// stopped, starting, running, stopping or failed.
+    pub state: String,
+    pub problem: String,
+    /// The service log with the commands' output.
+    pub log: String,
+}
+
+impl ProxyCommand {
+    /// "Stopped", "Starting…", "Running", "Stopping…" or "Failed: …".
+    pub fn text(&self) -> String {
+        match self.state.as_str() {
+            "starting" => tr!("worktrees.job.starting").to_owned(),
+            "running" => tr!("sites.proxy.running").to_owned(),
+            "stopping" => tr!("sites.server.stopping").to_owned(),
+            "failed" if self.problem.is_empty() => tr!("sites.server.failed").to_owned(),
+            "failed" => tr!("sites.server.failed_because", problem = self.problem),
+            _ => tr!("services.postgres.stopped").to_owned(),
+        }
+    }
+
+    /// A problem worth showing under the state while it starts (nothing answers yet).
+    pub fn note(&self) -> Option<&str> {
+        (self.state == "starting" && !self.problem.is_empty()).then_some(self.problem.as_str())
+    }
+
+    /// Start is offered when it's stopped or failed, Stop otherwise.
+    pub fn can_start(&self) -> bool {
+        matches!(self.state.as_str(), "stopped" | "failed" | "")
+    }
+
+    pub fn live(&self) -> bool {
+        matches!(self.state.as_str(), "starting" | "running" | "stopping")
+    }
+}
+
+/// A name served by a server of its own rather than by a site, e.g. a dashboard or an object store: every
 /// request, WebSocket upgrades included, passes to upstream with its Host header.
 #[derive(Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(default)]
@@ -1206,6 +1372,8 @@ pub struct ProxyStatus {
     /// "Node.js 22.23.4" for one of Flock's Node.js versions.
     pub running: bool,
     pub server: Option<String>,
+    /// Set when Flock starts and stops the server with a command.
+    pub command: Option<ProxyCommand>,
 }
 
 impl ProxyStatus {
@@ -1217,9 +1385,9 @@ impl ProxyStatus {
     /// What answers at the upstream: "Node.js 22.23.4", "Running" or "Not running".
     pub fn server_text(&self) -> String {
         match (&self.server, self.running) {
-            (_, false) => "Not running".to_owned(),
+            (_, false) => tr!("sites.proxy.not_running").to_owned(),
             (Some(server), true) if !server.is_empty() => server.clone(),
-            _ => "Running".to_owned(),
+            _ => tr!("sites.proxy.running").to_owned(),
         }
     }
 }
@@ -1251,19 +1419,31 @@ impl WorktreeStatus {
         self.state == "failed"
     }
 
+    /// How lists name its database: the mode asked for ("copy"), or "own database" for the
+    /// project's default; a mode this app doesn't know as the daemon says it.
+    pub fn database_label(&self) -> &str {
+        match self.db_mode.as_str() {
+            "" => tr!("worktrees.own_database"),
+            "shared" => tr!("app.shared_database"),
+            "copy" => tr!("app.copy_database"),
+            "fresh" => tr!("app.fresh_database"),
+            other => other,
+        }
+    }
+
     /// "Waiting…", "composer install…", "Ready" or "Setup failed".
     pub fn text(&self) -> String {
         match self.state.as_str() {
-            "queued" => "Waiting…".to_owned(),
+            "queued" => tr!("services.postgres.waiting").to_owned(),
             "running" => self.step_text(),
-            "failed" => "Setup failed".to_owned(),
-            _ => "Ready".to_owned(),
+            "failed" => tr!("worktrees.setup_failed").to_owned(),
+            _ => tr!("worktrees.job.ready").to_owned(),
         }
     }
 
     /// What a running setup does: "Composer install…", or "Setting up…" between steps.
     pub fn step_text(&self) -> String {
-        if self.step.is_empty() { "Setting up…".to_owned() } else { format!("{}…", capitalized(&self.step)) }
+        if self.step.is_empty() { tr!("worktrees.setting_up").to_owned() } else { format!("{}…", capitalized(&self.step)) }
     }
 }
 
@@ -1303,7 +1483,7 @@ impl Branches {
     pub fn choices(&self) -> Vec<(String, String)> {
         let mut choices = Vec::new();
         if self.current.is_empty() {
-            choices.push((String::new(), "The current commit".to_owned()));
+            choices.push((String::new(), tr!("worktrees.new.current_commit").to_owned()));
         }
         let mut names: Vec<&String> = Vec::new();
         for name in [&self.current, &self.default].into_iter().chain(self.local.iter().flatten()) {
@@ -1313,9 +1493,9 @@ impl Branches {
         }
         for name in names {
             let label = if *name == self.current {
-                format!("{name} (current)")
+                tr!("worktrees.new.current_branch", name = name)
             } else if *name == self.default {
-                format!("{name} (default)")
+                tr!("worktrees.new.default_branch", name = name)
             } else {
                 name.clone()
             };
@@ -1355,6 +1535,9 @@ pub struct ShareStatus {
 /// PATCH /v1/sites/{name}: only the fields that are set change.
 #[derive(Serialize, Default, Clone)]
 pub struct SiteChange {
+    /// php or node.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secured: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1473,6 +1656,72 @@ mod tests {
         let secured = serde_json::to_value(ProxyChange::new("softpack", "3001", Some(true))).unwrap();
         assert_eq!(secured, serde_json::json!({ "name": "softpack", "upstream": "3001", "secured": true }));
         assert_eq!(proxy_path("soft pack"), "/v1/proxies/soft%20pack");
+        // A new proxy with commands is added in one request; without a start command it has none.
+        let commands = ProxyCommandChange::new("docker compose up -d", "/home/a/s3", "docker compose stop");
+        let with = serde_json::to_value(ProxyChange::new("s3", "9000", None).with_commands(commands)).unwrap();
+        assert_eq!(
+            with,
+            serde_json::json!({ "name": "s3", "upstream": "9000", "command": "docker compose up -d", "dir": "/home/a/s3", "stop_command": "docker compose stop" })
+        );
+        let without =
+            serde_json::to_value(ProxyChange::new("s3", "9000", None).with_commands(ProxyCommandChange::new("", "/home/a", ""))).unwrap();
+        assert_eq!(without, serde_json::json!({ "name": "s3", "upstream": "9000" }));
+    }
+
+    #[test]
+    fn decodes_node_sites() {
+        let json = r#"{"sites":[
+            {"name":"web","domain":"web.test","path":"/home/a/web","php":"8.4","node":"22","type":"node",
+              "node_server":{"state":"running","port":22080,"command":"npm run dev -- --port 22080","log":"node-web"}},
+            {"name":"docs","domain":"docs.test","path":"/home/a/docs","node":"22","type":"node",
+              "node_server":{"state":"failed","port":22081,"command":"npm run dev -- --port 22081",
+                "problem":"node_modules is missing: run npm install in the project","log":"node-docs"}},
+            {"name":"acme","domain":"acme.test","path":"/home/a/acme","php":"8.4"}]}"#;
+        let status: Status = serde_json::from_str(json).unwrap();
+        let web = &status.sites[0];
+        assert!(web.is_node());
+        let server = web.node_server.as_ref().unwrap();
+        assert_eq!(server.text(), "Running on port 22080");
+        assert!(server.live() && server.note().is_none());
+        assert_eq!(server.log, "node-web");
+        let docs = status.sites[1].node_server.as_ref().unwrap();
+        assert_eq!(docs.text(), "Stopped: node_modules is missing: run npm install in the project");
+        assert!(docs.note().is_none() && !docs.live());
+        let sleeping = SiteNodeServer { state: "sleeping".to_owned(), ..Default::default() };
+        assert_eq!(sleeping.text(), "Sleeping · starts on the next visit");
+        // An older daemon's site has no type: PHP.
+        assert!(!status.sites[2].is_node());
+        assert!(status.sites[2].node_server.is_none());
+        let change = SiteChange { kind: Some("node".to_owned()), ..Default::default() };
+        assert_eq!(serde_json::to_value(change).unwrap(), serde_json::json!({ "type": "node" }));
+    }
+
+    #[test]
+    fn decodes_proxy_commands() {
+        let json = r#"{"proxies":[
+            {"name":"admin","domain":"admin.test","upstream":"http://127.0.0.1:8000","running":false,
+              "command":{"command":"python manage.py runserver 8000","dir":"/home/a/admin","state":"starting",
+                "problem":"nothing answers at http://127.0.0.1:8000 yet","log":"proxy-admin"}},
+            {"name":"s3","domain":"s3.test","upstream":"http://127.0.0.1:9000","running":true,
+              "command":{"command":"docker compose up -d","dir":"/home/a/s3","stop_command":"docker compose stop",
+                "state":"running","log":"proxy-s3"}}]}"#;
+        let status: Status = serde_json::from_str(json).unwrap();
+        let admin = status.proxies[0].command.as_ref().unwrap();
+        assert_eq!(admin.text(), "Starting…");
+        assert_eq!(admin.note(), Some("nothing answers at http://127.0.0.1:8000 yet"));
+        assert!(!admin.can_start() && admin.live());
+        let s3 = status.proxies[1].command.as_ref().unwrap();
+        assert_eq!(s3.stop_command, "docker compose stop");
+        assert_eq!(s3.text(), "Running");
+        let failed = ProxyCommand { state: "failed".to_owned(), problem: "the command exited".to_owned(), ..Default::default() };
+        assert_eq!(failed.text(), "Failed: the command exited");
+        assert!(failed.can_start());
+
+        // An empty command removes it, with its folder and stop command.
+        let change = serde_json::to_value(ProxyCommandChange::new(" npm run dev ", "/home/a/web", "")).unwrap();
+        assert_eq!(change, serde_json::json!({ "command": "npm run dev", "dir": "/home/a/web", "stop_command": "" }));
+        let removed = serde_json::to_value(ProxyCommandChange::new("  ", "/home/a/web", "x")).unwrap();
+        assert_eq!(removed, serde_json::json!({ "command": "", "stop_command": "" }));
     }
 
     #[test]

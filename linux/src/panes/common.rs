@@ -3,6 +3,7 @@
 use adw::prelude::*;
 use gtk::{gio, glib};
 
+use crate::i18n::tr;
 use crate::links::Resolution;
 
 /// A pane's scrolling column of groups. Replacing the groups keeps the scroll position.
@@ -104,6 +105,18 @@ pub fn status_dot(on: bool) -> gtk::Label {
     gtk::Label::builder().label("●").css_classes([if on { "success" } else { "dim-label" }]).build()
 }
 
+/// A ● for a server's state, for a row's prefix: green while it runs, amber while it starts or
+/// stops, red when it failed, grey otherwise.
+pub fn state_dot(state: &str) -> gtk::Label {
+    let class = match state {
+        "running" => "success",
+        "starting" | "stopping" => "warning",
+        "failed" => "error",
+        _ => "dim-label",
+    };
+    gtk::Label::builder().label("●").css_classes([class]).build()
+}
+
 /// Shows a failed action in the Settings window's banner, or hides it.
 pub fn report(banner: &adw::Banner, error: Option<String>) {
     match error {
@@ -140,11 +153,11 @@ pub fn ask_link<T: 'static>(parent: &impl IsA<gtk::Widget>, resolution: Resoluti
     glib::idle_add_local_once(move || {
         let dialog = adw::AlertDialog::new(Some(&resolution.title), Some(&resolution.message));
         let Some(action) = resolution.action else {
-            dialog.add_response("ok", "OK");
+            dialog.add_response("ok", tr!("common.ok"));
             dialog.present(Some(&parent));
             return;
         };
-        dialog.add_responses(&[("cancel", "Cancel"), ("confirm", &confirm)]);
+        dialog.add_responses(&[("cancel", tr!("common.cancel")), ("confirm", &confirm)]);
         dialog.set_response_appearance("confirm", adw::ResponseAppearance::Suggested);
         dialog.set_default_response(Some("confirm"));
         dialog.choose(Some(&parent), gio::Cancellable::NONE, move |response| {

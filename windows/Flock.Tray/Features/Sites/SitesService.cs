@@ -49,13 +49,58 @@ public sealed class SitesService : IAsyncDisposable
 
     /// <summary>Adds a proxy, or changes its upstream (a port, host:port or URL). Site and proxy names never clash, so they share the site keys.</summary>
     public Task<OperationOutcome> ProxyAsync(string name, string upstream, CancellationToken token = default) =>
-        MutateAsync(Key(name), name, (_, cancellationToken) => client.ProxyAsync(name, upstream, cancellationToken: cancellationToken), token);
+        ProxyAsync(name, upstream, null, token);
+
+    /// <summary>Adds a proxy with the commands that start and stop its server (null: none).</summary>
+    public Task<OperationOutcome> ProxyAsync(string name, string upstream, ProxyChange? commands, CancellationToken token = default) =>
+        MutateAsync(Key(name), name, (_, cancellationToken) => client.ProxyAsync(name, upstream, null, commands, cancellationToken), token);
 
     public Task<OperationOutcome> SecureProxyAsync(string name, bool secured, CancellationToken token = default) =>
         MutateAsync(Key(name), name, (_, cancellationToken) => client.SecureProxyAsync(name, secured, cancellationToken), token);
 
     public Task<OperationOutcome> RemoveProxyAsync(string name, CancellationToken token = default) =>
         MutateAsync(Key(name), name, (_, cancellationToken) => client.RemoveProxyAsync(name, cancellationToken), token);
+
+    /// <summary>Changes a proxy's command, its folder or its stop command (an empty command removes them).</summary>
+    public Task<OperationOutcome> UpdateProxyAsync(string name, ProxyChange change, CancellationToken token = default) =>
+        MutateAsync(Key(name), name, (_, cancellationToken) => client.UpdateProxyAsync(name, change, cancellationToken), token);
+
+    public Task<OperationOutcome> StartProxyAsync(string name, CancellationToken token = default) =>
+        MutateAsync(Key(name), name, (_, cancellationToken) => client.StartProxyAsync(name, cancellationToken), token);
+
+    public Task<OperationOutcome> StopProxyAsync(string name, CancellationToken token = default) =>
+        MutateAsync(Key(name), name, (_, cancellationToken) => client.StopProxyAsync(name, cancellationToken), token);
+
+    /// <summary>Puts a Node.js site's dev server to sleep until its next request.</summary>
+    public Task<OperationOutcome> StopSiteAsync(string site, CancellationToken token = default) =>
+        MutateAsync(Key(site), site, (_, cancellationToken) => client.StopSiteAsync(site, cancellationToken), token);
+
+    /// <summary>The last lines of a service's log (a dev server's or a proxy command's output); null when it can't be read.</summary>
+    public async Task<string?> ServiceLogAsync(string name, CancellationToken token = default)
+    {
+        try
+        {
+            return await client.ServiceLogAsync(name, 300, token);
+        }
+        catch (FlockException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Empties a service's log; false when that failed.</summary>
+    public async Task<bool> ClearServiceLogAsync(string name, CancellationToken token = default)
+    {
+        try
+        {
+            await client.ClearServiceLogAsync(name, token);
+            return true;
+        }
+        catch (FlockException)
+        {
+            return false;
+        }
+    }
 
     public Task<OperationOutcome> AddDomainAsync(string site, string domain, CancellationToken token = default) =>
         MutateAsync(Key(site), site, (_, cancellationToken) => client.AddDomainAsync(site, domain, cancellationToken), token);
@@ -160,7 +205,7 @@ public sealed class SitesService : IAsyncDisposable
         }, token);
         if (outcome is OperationOutcome.Rejected or OperationOutcome.Canceled)
         {
-            return (null, outcome == OperationOutcome.Canceled ? "Extension request canceled." : null);
+            return (null, outcome == OperationOutcome.Canceled ? Strings.Sites_ExtensionCanceled : null);
         }
         return await SiteExtensionsAsync(site, token);
     }
@@ -214,8 +259,8 @@ public sealed class SitesService : IAsyncDisposable
         }
         return outcome switch
         {
-            OperationOutcome.Rejected => "Another change to this site is still running. Try again when it's done.",
-            OperationOutcome.Canceled => "Canceled.",
+            OperationOutcome.Rejected => Strings.Sites_ChangeRunning,
+            OperationOutcome.Canceled => Strings.Common_Canceled,
             _ => errors.Action,
         };
     }

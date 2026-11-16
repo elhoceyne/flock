@@ -17,6 +17,7 @@ use ksni::menu::{CheckmarkItem, MenuItem, StandardItem, SubMenu};
 
 use crate::APP_ID;
 use crate::api::{ProxyStatus, SettingsChange, SiteStatus, Status};
+use crate::i18n::tr;
 use crate::model::AppModel;
 
 /// What the tray asks the app to do, on the main loop.
@@ -102,9 +103,14 @@ impl SiteItem {
             .collect()
     }
 
-    /// "softpack.test · Node.js 22.23.4": what answers at the upstream, or "· Not running".
+    /// "softpack.test · Node.js 22.23.4": what answers at the upstream, or "· Not running"; for a
+    /// server Flock starts with a command, its state ("· Starting…", "· Failed: …").
     fn proxy(proxy: &ProxyStatus) -> Self {
-        SiteItem { label: format!("{} · {}", proxy.domain, proxy.server_text()), url: proxy.url.clone(), worktrees: Vec::new() }
+        let state = match &proxy.command {
+            Some(command) if command.state != "running" => command.text(),
+            _ => proxy.server_text(),
+        };
+        SiteItem { label: format!("{} · {state}", proxy.domain), url: proxy.url.clone(), worktrees: Vec::new() }
     }
 
     /// "feature/auth", with its own database ("· copy") and its setup ("· Composer install…").
@@ -112,7 +118,7 @@ impl SiteItem {
         let mut label = site.worktree_label();
         if let Some(setup) = &site.worktree {
             if !setup.database.is_empty() {
-                label.push_str(&format!(" · {}", if setup.db_mode.is_empty() { "own database" } else { setup.db_mode.as_str() }));
+                label.push_str(&format!(" · {}", setup.database_label()));
             }
             if setup.busy() || setup.failed() {
                 label.push_str(&format!(" · {}", setup.text()));
@@ -194,10 +200,10 @@ impl FlockTray {
             submenu.extend(self.state.proxies.iter().map(open));
         }
         if submenu.is_empty() {
-            submenu.push(text("No sites yet"));
+            submenu.push(text(tr!("menu.no_sites_yet")));
         }
-        submenu.extend([MenuItem::Separator, item("Manage Sites…", || Command::Open("settings/sites"))]);
-        SubMenu { label: "Sites".to_owned(), submenu, ..Default::default() }.into()
+        submenu.extend([MenuItem::Separator, item(tr!("menu.manage_sites"), || Command::Open("settings/sites"))]);
+        SubMenu { label: tr!("settings.pane.sites").to_owned(), submenu, ..Default::default() }.into()
     }
 }
 
@@ -243,31 +249,31 @@ impl ksni::Tray for FlockTray {
         items.push(MenuItem::Separator);
         // Before the setup there is nothing to open yet: Mail, Dumps, Logs and Settings all need the daemon.
         if self.state.needs_setup {
-            items.extend([item("Set Up Flock…", || Command::Open("setup")), MenuItem::Separator]);
+            items.extend([item(tr!("menu.set_up_flock"), || Command::Open("setup")), MenuItem::Separator]);
         } else {
-            items.extend([item("Open Flock", || Command::Show), MenuItem::Separator]);
+            items.extend([item(tr!("menu.open_flock"), || Command::Show), MenuItem::Separator]);
             if self.state.running {
                 items.push(self.sites());
             }
             items.extend([
-                item(&counted("Mail", self.state.mail_count), || Command::Open("mail")),
-                item(&counted("Dumps", self.state.dump_count), || Command::Open("dumps")),
-                item("Logs", || Command::Open("logs")),
+                item(&counted(tr!("services.category.mail"), self.state.mail_count), || Command::Open("mail")),
+                item(&counted(tr!("menu.dumps"), self.state.dump_count), || Command::Open("dumps")),
+                item(tr!("dumps.event_kind.logs"), || Command::Open("logs")),
                 MenuItem::Separator,
             ]);
             if self.state.running {
                 items.extend([
                     toggle("Xdebug", self.state.xdebug, |on| SettingsChange { xdebug: Some(on), ..Default::default() }),
-                    toggle("Capture Dumps", self.state.dumps, |on| SettingsChange { dumps: Some(on), ..Default::default() }),
+                    toggle(tr!("dumps.capture_dumps"), self.state.dumps, |on| SettingsChange { dumps: Some(on), ..Default::default() }),
                     MenuItem::Separator,
                 ]);
             }
             items.extend([
-                item("Settings…", || Command::Open("settings")),
-                item(if self.state.running { "Restart Flock" } else { "Start Flock" }, || Command::Restart),
+                item(tr!("menu.settings"), || Command::Open("settings")),
+                item(if self.state.running { tr!("menu.restart_flock") } else { tr!("menu.start_flock") }, || Command::Restart),
             ]);
         }
-        items.push(item("Quit Flock", || Command::Quit));
+        items.push(item(tr!("menu.quit_flock"), || Command::Quit));
         items
     }
 
@@ -362,5 +368,13 @@ mod tests {
         assert_eq!(proxies[0].label, "blog.test · Not running");
         assert_eq!(proxies[0].url.as_deref(), Some("http://blog.test"));
         assert_eq!(proxies[1].label, "minio.test · Running");
+
+        // A server Flock starts shows its state until it runs.
+        let started: Status = serde_json::from_str(
+            r#"{"proxies":[{"name":"admin","domain":"admin.test","upstream":"http://127.0.0.1:8000","running":false,
+                "command":{"command":"python manage.py runserver 8000","dir":"/home/a/admin","state":"starting","log":"proxy-admin"}}]}"#,
+        )
+        .unwrap();
+        assert_eq!(SiteItem::proxy(&started.proxies[0]).label, "admin.test · Starting…");
     }
 }

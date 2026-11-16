@@ -7,11 +7,11 @@ namespace Flock.Kit;
 public class FlockException(string message, Exception? innerException = null) : Exception(message, innerException);
 
 /// <summary>Nothing answers on the daemon's API.</summary>
-public sealed class FlockNotRunningException(Exception? innerException = null) : FlockException("Flock is not running", innerException);
+public sealed class FlockNotRunningException(Exception? innerException = null) : FlockException(Strings.App_NotRunning, innerException);
 
 /// <summary>The daemon answered with an error.</summary>
 public sealed class FlockServerException(int status, string message, Exception? innerException = null)
-    : FlockException(message.Length == 0 ? $"Flock answered with HTTP {status}" : message, innerException)
+    : FlockException(message.Length == 0 ? Localization.Format(Strings.App_HttpStatus, status) : message, innerException)
 {
     public int StatusCode { get; } = status;
 }
@@ -19,7 +19,7 @@ public sealed class FlockServerException(int status, string message, Exception? 
 
 /// <summary>The daemon may have applied a write before the connection failed.</summary>
 public sealed class FlockRequestOutcomeUnknownException(Exception innerException)
-    : FlockException("The connection failed. The change may have completed; refresh its state before retrying.", innerException);
+    : FlockException(Strings.App_OutcomeUnknown, innerException);
 
 /// <summary>Talks to the daemon's local HTTP API (the loopback listener described by api.json).</summary>
 public sealed class FlockClient : IDisposable
@@ -83,8 +83,11 @@ public sealed class FlockClient : IDisposable
         Send<Status>(HttpMethod.Patch, $"/v1/sites/{Escape(name)}", change,
             timeout: change.Server is not null || change.Worker is not null ? ServerSwitchTimeout : null, cancellationToken: cancellationToken);
 
-    /// <summary>Restarts a FrankenPHP site's process, e.g. so Octane's workers load changed code.</summary>
+    /// <summary>Restarts a FrankenPHP site's process, e.g. so Octane's workers load changed code, or a Node.js site's dev server (starting it when it sleeps).</summary>
     public Task<Status> RestartSiteAsync(string name, CancellationToken cancellationToken = default) => Send<Status>(HttpMethod.Post, $"/v1/sites/{Escape(name)}/restart", timeout: ServerSwitchTimeout, cancellationToken: cancellationToken);
+
+    /// <summary>Puts a Node.js site's dev server to sleep until the site's next request.</summary>
+    public Task<Status> StopSiteAsync(string name, CancellationToken cancellationToken = default) => Send<Status>(HttpMethod.Post, $"/v1/sites/{Escape(name)}/stop", timeout: ServerSwitchTimeout, cancellationToken: cancellationToken);
 
     public Task<Status> UnlinkSiteAsync(string name, CancellationToken cancellationToken = default) => Send<Status>(HttpMethod.Delete, $"/v1/sites/{Escape(name)}", cancellationToken: cancellationToken);
 
@@ -93,18 +96,35 @@ public sealed class FlockClient : IDisposable
     /// upstream. A null secured keeps the proxy's setting (HTTP for a new one).
     /// </summary>
     public Task<Status> ProxyAsync(string name, string upstream, bool? secured = null, CancellationToken cancellationToken = default) =>
-        Send<Status>(HttpMethod.Post, "/v1/proxies", new ProxyRequest(name, upstream, secured), cancellationToken: cancellationToken);
+        ProxyAsync(name, upstream, secured, null, cancellationToken);
+
+    /// <summary>As ProxyAsync, also setting the commands that start and stop its server (commands' null fields are left out).</summary>
+    public Task<Status> ProxyAsync(string name, string upstream, bool? secured, ProxyChange? commands, CancellationToken cancellationToken = default) =>
+        Send<Status>(HttpMethod.Post, "/v1/proxies",
+            new ProxyRequest(name, upstream, secured, commands?.Command, commands?.Dir, commands?.StopCommand), cancellationToken: cancellationToken);
 
     /// <summary>Serves a proxy over HTTPS (on) or plain HTTP.</summary>
     public Task<Status> SecureProxyAsync(string name, bool secured, CancellationToken cancellationToken = default) =>
         Send<Status>(HttpMethod.Patch, $"/v1/proxies/{Escape(name)}", new { secured }, cancellationToken: cancellationToken);
+
+    /// <summary>Changes a proxy, e.g. the command that starts its server.</summary>
+    public Task<Status> UpdateProxyAsync(string name, ProxyChange change, CancellationToken cancellationToken = default) =>
+        Send<Status>(HttpMethod.Patch, $"/v1/proxies/{Escape(name)}", change, timeout: ServerSwitchTimeout, cancellationToken: cancellationToken);
+
+    /// <summary>Runs a proxy's command, which starts its server.</summary>
+    public Task<Status> StartProxyAsync(string name, CancellationToken cancellationToken = default) =>
+        Send<Status>(HttpMethod.Post, $"/v1/proxies/{Escape(name)}/start", cancellationToken: cancellationToken);
+
+    /// <summary>Stops the server Flock started for a proxy; waits for it to exit.</summary>
+    public Task<Status> StopProxyAsync(string name, CancellationToken cancellationToken = default) =>
+        Send<Status>(HttpMethod.Post, $"/v1/proxies/{Escape(name)}/stop", timeout: ServerSwitchTimeout, cancellationToken: cancellationToken);
 
     /// <summary>Stops serving a proxy; the server at its upstream keeps running.</summary>
     public Task<Status> RemoveProxyAsync(string name, CancellationToken cancellationToken = default) =>
         Send<Status>(HttpMethod.Delete, $"/v1/proxies/{Escape(name)}", cancellationToken: cancellationToken);
 
     // Secured is left out when null (FlockJson ignores nulls), so the daemon keeps an existing proxy's setting.
-    private sealed record ProxyRequest(string Name, string Upstream, bool? Secured);
+    private sealed record ProxyRequest(string Name, string Upstream, bool? Secured, string? Command = null, string? Dir = null, string? StopCommand = null);
 
     /// <summary>Adds an extra domain: a subdomain ("tenant1", "a.b") or an alias ("my-app-2.test").</summary>
     public Task<Status> AddDomainAsync(string site, string domain, CancellationToken cancellationToken = default) =>
@@ -402,6 +422,9 @@ public sealed class FlockClient : IDisposable
     public Task<string> ServiceLogAsync(string name, int lines = 300, CancellationToken cancellationToken = default) =>
         Text(HttpMethod.Get, $"/v1/logs/services/{Escape(name)}?lines={lines}", cancellationToken);
 
+    /// <summary>Empties a service's log, e.g. the output of a proxy's command.</summary>
+    public async Task ClearServiceLogAsync(string name, CancellationToken cancellationToken = default) => await Raw(HttpMethod.Delete, $"/v1/logs/services/{Escape(name)}", cancellationToken: cancellationToken);
+
     public Task<List<LogEntry>> SiteLogAsync(string name, int limit = 200, CancellationToken cancellationToken = default) =>
         Get<List<LogEntry>>($"/v1/logs/sites/{Escape(name)}?limit={limit}", cancellationToken: cancellationToken);
 
@@ -429,11 +452,11 @@ public sealed class FlockClient : IDisposable
         }
         try
         {
-            return JsonSerializer.Deserialize<T>(data, FlockJson.Options) ?? throw new FlockException($"empty answer from {path}");
+            return JsonSerializer.Deserialize<T>(data, FlockJson.Options) ?? throw new FlockException(Localization.Format(Strings.App_EmptyAnswer, path));
         }
         catch (JsonException e)
         {
-            throw new FlockException($"Unexpected answer from {path}: {e.Message}", e);
+            throw new FlockException(Localization.Format(Strings.App_UnexpectedAnswer, path, e.Message), e);
         }
     }
 
@@ -525,7 +548,7 @@ public sealed class FlockClient : IDisposable
 
     private static Exception TimeoutFailure(HttpMethod method, string path, Exception cause) =>
         method == HttpMethod.Get
-            ? new FlockException($"Flock did not answer {method} {path} in time", cause)
+            ? new FlockException(Localization.Format(Strings.App_Timeout, method, path), cause)
             : new FlockRequestOutcomeUnknownException(cause);
 
     private static Exception TerminalTransportFailure(HttpMethod method, Exception cause) =>

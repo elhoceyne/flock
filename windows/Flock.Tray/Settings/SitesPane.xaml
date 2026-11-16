@@ -2,10 +2,12 @@
     x:Class="Flock.Tray.Settings.SitesPane"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="using:Flock.Tray"
     xmlns:settings="using:Flock.Tray.Settings">
     <UserControl.Resources>
         <settings:BooleanVisibilityConverter x:Key="BooleanVisibilityConverter" /><settings:StringVisibilityConverter x:Key="StringVisibilityConverter" />
         <settings:InverseBooleanVisibilityConverter x:Key="InverseBooleanVisibilityConverter" />
+        <settings:ToneBrushConverter x:Key="ToneBrushConverter" />
     </UserControl.Resources>
     <Grid>
         <Grid ColumnSpacing="16" Visibility="{Binding HasSites, Converter={StaticResource BooleanVisibilityConverter}}">
@@ -17,9 +19,9 @@
                     <RowDefinition Height="Auto" /><RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Add Site…" Click="AddSiteClicked" />
-                    <Button Content="Add Proxy…" Click="AddProxyClicked"
-                            ToolTipService.ToolTip="Serve a server of its own, e.g. a Node.js dev server on a port, at a .test domain" />
+                    <Button Content="{l:Loc Key=Sites_AddSite}" Click="AddSiteClicked" />
+                    <Button Content="{l:Loc Key=Sites_AddProxy}" Click="AddProxyClicked"
+                            ToolTipService.ToolTip="{l:Loc Key=Sites_AddProxyServerTooltip}" />
                 </StackPanel>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,14,8">
                     <StackPanel>
@@ -33,10 +35,16 @@
                                     <StackPanel Spacing="1">
                                         <TextBlock Text="{Binding ListTitle}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding Domain}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Problem}" Foreground="{ThemeResource SystemFillColorCautionBrush}" TextTrimming="CharacterEllipsis"
-                                                   Visibility="{Binding Problem, Converter={StaticResource StringVisibilityConverter}}" />
                                     </StackPanel>
+                                    <!-- A problem shows as an icon, as on proxies; the detail says it in full. -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE7BA;" FontFamily="{StaticResource SymbolsFont}" FontSize="12"
+                                                  Foreground="{ThemeResource SystemFillColorCautionBrush}" ToolTipService.ToolTip="{Binding Problem}"
+                                                  Visibility="{Binding HasProblem, Converter={StaticResource BooleanVisibilityConverter}}" />
+                                        <!-- A Node.js site's dev server: sleeping, starting, running or failed. -->
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{Binding Dot, Converter={StaticResource ToneBrushConverter}}"
+                                                 ToolTipService.ToolTip="{Binding DotTooltip}"
+                                                 Visibility="{Binding HasDot, Converter={StaticResource BooleanVisibilityConverter}}" />
                                         <ProgressRing Width="12" Height="12" ToolTipService.ToolTip="{Binding SetupStep}"
                                                       Visibility="{Binding IsSettingUp, Converter={StaticResource BooleanVisibilityConverter}}" />
                                         <Border Style="{StaticResource BadgeStyle}" ToolTipService.ToolTip="{Binding DatabaseTooltip}"
@@ -47,7 +55,7 @@
                                                   Visibility="{Binding Secured, Converter={StaticResource BooleanVisibilityConverter}}" />
                                         <Border Style="{StaticResource BadgeStyle}"
                                                 Visibility="{Binding IsShared, Converter={StaticResource BooleanVisibilityConverter}}">
-                                            <TextBlock Text="Shared" FontSize="11" />
+                                            <TextBlock Text="{l:Loc Key=Sites_Shared}" FontSize="11" />
                                         </Border>
                                     </StackPanel>
                                 </Grid>
@@ -55,7 +63,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
                     <!-- Proxies (flock proxy) follow the sites; their names never clash with a site's. -->
-                    <TextBlock Text="Proxies" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Margin="12,12,0,4"
+                    <TextBlock Text="{l:Loc Key=Sites_Proxies}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Margin="12,12,0,4"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                Visibility="{Binding HasProxies, Converter={StaticResource BooleanVisibilityConverter}}" />
                     <ListView x:Name="ProxyList" ItemsSource="{Binding Proxies}" SelectionChanged="ProxySelectionChanged" SelectionMode="Single"
@@ -74,13 +82,9 @@
                                         <FontIcon Glyph="&#xE7BA;" FontFamily="{StaticResource SymbolsFont}" FontSize="12"
                                                   Foreground="{ThemeResource SystemFillColorCautionBrush}" ToolTipService.ToolTip="{Binding Problem}"
                                                   Visibility="{Binding HasProblem, Converter={StaticResource BooleanVisibilityConverter}}" />
-                                        <Grid ToolTipService.ToolTip="{Binding ServerLabel}" VerticalAlignment="Center">
-                                            <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorSuccessBrush}"
-                                                     Visibility="{Binding Running, Converter={StaticResource BooleanVisibilityConverter}}" />
-                                            <Ellipse Width="8" Height="8" Fill="{ThemeResource ControlStrongFillColorDisabledBrush}"
-                                                     Visibility="{Binding Running, Converter={StaticResource InverseBooleanVisibilityConverter}}" />
-                                        </Grid>
-                                        <FontIcon Glyph="&#xE72E;" FontFamily="{StaticResource SymbolsFont}" FontSize="12" ToolTipService.ToolTip="Served over HTTPS"
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{Binding Dot, Converter={StaticResource ToneBrushConverter}}"
+                                                 ToolTipService.ToolTip="{Binding DotTooltip}" />
+                                        <FontIcon Glyph="&#xE72E;" FontFamily="{StaticResource SymbolsFont}" FontSize="12" ToolTipService.ToolTip="{l:Loc Key=Sites_ServedOverHttps}"
                                                   Visibility="{Binding Secured, Converter={StaticResource BooleanVisibilityConverter}}" />
                                     </StackPanel>
                                 </Grid>
@@ -100,12 +104,12 @@
                     Visibility="{Binding HasSites, Converter={StaticResource InverseBooleanVisibilityConverter}}">
             <FontIcon Glyph="&#xE774;" FontFamily="{StaticResource SymbolsFont}" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                       HorizontalAlignment="Center" />
-            <TextBlock Text="No sites" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
-            <TextBlock Text="Add a single site here, or add a project folder in General." Style="{StaticResource CaptionTextBlockStyle}"
+            <TextBlock Text="{l:Loc Key=Sites_NoSites}" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock Text="{l:Loc Key=Sites_NoSitesDescription}" Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" HorizontalAlignment="Center" />
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0">
-                <Button Content="Add Site…" Click="AddSiteClicked" Style="{StaticResource AccentButtonStyle}" />
-                <Button Content="Add Proxy…" Click="AddProxyClicked" />
+                <Button Content="{l:Loc Key=Sites_AddSite}" Click="AddSiteClicked" Style="{StaticResource AccentButtonStyle}" />
+                <Button Content="{l:Loc Key=Sites_AddProxy}" Click="AddProxyClicked" />
             </StackPanel>
         </StackPanel>
     </Grid>
