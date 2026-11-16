@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v93/github"
@@ -14,11 +15,12 @@ import (
 	"flock/tools/github/issue"
 	"flock/tools/github/merge"
 	"flock/tools/github/pr"
+	"flock/tools/github/releasesync"
 )
 
 func main() {
 	if !validCommand(os.Args[1:]) {
-		fail(errors.New("usage: github pr | issue triage|assignment | merge"))
+		fail(errors.New("usage: github pr | issue triage|assignment | merge | release-sync <pr-number> <milestone-number>"))
 	}
 	owner, repo, err := parseRepository(os.Getenv("GITHUB_REPOSITORY"))
 	if err != nil {
@@ -28,12 +30,22 @@ func main() {
 	if token == "" {
 		fail(errors.New("GITHUB_TOKEN is not set"))
 	}
-	event, err := os.ReadFile(os.Getenv("GITHUB_EVENT_PATH"))
+	ctx := context.Background()
+	client, err := newGitHubClient(apiURL(), token)
 	if err != nil {
 		fail(err)
 	}
-	ctx := context.Background()
-	client, err := newGitHubClient(apiURL(), token)
+	if os.Args[1] == "release-sync" {
+		number, milestone, err := releaseSyncArguments(os.Args[2:])
+		if err == nil {
+			err = releasesync.Run(ctx, client, owner, repo, number, milestone, os.Stdout)
+		}
+		if err != nil {
+			fail(err)
+		}
+		return
+	}
+	event, err := os.ReadFile(os.Getenv("GITHUB_EVENT_PATH"))
 	if err != nil {
 		fail(err)
 	}
@@ -55,10 +67,29 @@ func main() {
 }
 
 func validCommand(args []string) bool {
+	if len(args) == 3 && args[0] == "release-sync" {
+		_, _, err := releaseSyncArguments(args[1:])
+		return err == nil
+	}
 	if len(args) == 1 {
 		return args[0] == "pr" || args[0] == "merge"
 	}
 	return len(args) == 2 && args[0] == "issue" && (args[1] == "triage" || args[1] == "assignment")
+}
+
+func releaseSyncArguments(args []string) (int, int, error) {
+	if len(args) != 2 {
+		return 0, 0, errors.New("release-sync requires a PR number and milestone number")
+	}
+	number, err := strconv.Atoi(args[0])
+	if err != nil || number < 1 {
+		return 0, 0, errors.New("release PR number must be a positive integer")
+	}
+	milestone, err := strconv.Atoi(args[1])
+	if err != nil || milestone < 1 {
+		return 0, 0, errors.New("milestone number must be a positive integer")
+	}
+	return number, milestone, nil
 }
 
 func newGitHubClient(baseURL, token string) (*github.Client, error) {

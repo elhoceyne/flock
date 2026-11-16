@@ -19,6 +19,9 @@ func TestValidCommandAcceptsOnlyWorkflowCommands(t *testing.T) {
 	}{
 		{args: []string{"pr"}, want: true},
 		{args: []string{"merge"}, want: true},
+		{args: []string{"release-sync", "134", "2"}, want: true},
+		{args: []string{"release-sync", "0", "2"}, want: false},
+		{args: []string{"release-sync", "134", "abc"}, want: false},
 		{args: []string{"issue", "triage"}, want: true},
 		{args: []string{"issue", "assignment"}, want: true},
 		{args: []string{"issue"}, want: false},
