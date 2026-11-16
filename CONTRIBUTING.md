@@ -51,9 +51,10 @@ next release. A pull request that adds or changes a feature should update its do
 
 ## Translations
 
-The apps' texts live in [`lang/`](lang), a folder per language. A pull request that only adds or
-fixes translations needs no issue, like the docs: edit `lang/<code>/app.json`, or copy
-`lang/en/app.json` to start a new language, run `make i18n` and open a pull request.
+The apps' texts live in [`lang/`](lang), a folder per language. To add or fix translations, first
+find or open an issue and wait for approval. Then edit `lang/<code>/app.json`, or start a new
+language as described in [`lang/README.md`](lang/README.md), run `make i18n`, and open a pull
+request linked to the approved issue.
 
 A pull request that adds or changes a text in an app needs only the English, in `lang/en/app.json`
 under a key; translations are welcome but not required. Changing a text's meaning needs a new
