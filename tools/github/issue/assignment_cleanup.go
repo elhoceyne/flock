@@ -33,7 +33,7 @@ func (s *state) observeAssignment(ctx context.Context) error {
 		return fmt.Errorf("read assigned issue #%d: %w", s.event.issue.Number, err)
 	}
 	s.observed.issue = contribution.IssueFromGitHub(item)
-	if s.observed.issue == nil || len(s.observed.issue.Assignees) == 0 {
+	if s.observed.issue == nil || len(s.observed.issue.Assignees) == 0 || !s.observed.issue.HasLabel(contribution.ClaimedLabel) {
 		return nil
 	}
 	claims, err := findIssueClaims(ctx, s.client, s.owner, s.repository, s.event.issue.Number)

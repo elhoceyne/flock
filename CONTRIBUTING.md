@@ -21,7 +21,8 @@ An issue assigned to someone else isn't available, even if it still has the `hel
 the **`claimed`** label to the issue and pull request, removes `help wanted`, and closes the other pull requests.
 
 Pull requests that don't reference an approved issue are closed automatically, with a note explaining why. Once the
-issue is approved, edit the pull request's description to reference it and it reopens by itself.
+issue is approved, edit the pull request's description to reference it and it reopens by itself. Adding a Development
+sidebar link alone doesn't trigger reopening; edit the description even if the issue is already linked there.
 
 Flock releases an automatic issue claim when its pull request closes without merging, targets a branch other than
 `main`, or no longer has the issue as a same-repository closing reference. The release removes only the bot's claim

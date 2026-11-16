@@ -26,7 +26,9 @@ func TestTriageAppliesPlatformLabelsBeforeNeedsTriage(t *testing.T) {
 		case "POST /repos/flock-php/flock/issues/73/labels":
 			var request []string
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatal(err)
+				t.Error(err)
+				http.Error(w, "invalid label request", http.StatusBadRequest)
+				return
 			}
 			labels = append(labels, request...)
 			_, _ = io.WriteString(w, `[]`)
@@ -81,7 +83,9 @@ func TestTriageBypassesNeedsTriageForPermissionAndTrustedAuthors(t *testing.T) {
 				case "POST /repos/flock-php/flock/issues/73/labels":
 					var request []string
 					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-						t.Fatal(err)
+						t.Error(err)
+						http.Error(w, "invalid label request", http.StatusBadRequest)
+						return
 					}
 					labels = append(labels, request...)
 					_, _ = io.WriteString(w, `[]`)
@@ -205,6 +209,41 @@ func TestAssignmentSkipsCleanupForUnassignedCurrentIssue(t *testing.T) {
 	}
 }
 
+func TestAssignmentSkipsClaimsWithoutClaimedLabel(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		labels string
+		remove bool
+	}{
+		{name: "help wanted", labels: `[{"name":"help wanted"}]`, remove: true},
+		{name: "no labels", labels: `[]`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests []string
+			client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				requests = append(requests, r.Method+" "+r.URL.Path)
+				switch r.Method + " " + r.URL.Path {
+				case "GET /repos/flock-php/flock/issues/73":
+					_, _ = io.WriteString(w, `{"number":73,"assignees":[{"login":"contributor"}],"labels":`+test.labels+`}`)
+				case "DELETE /repos/flock-php/flock/issues/73/labels/help wanted":
+					_, _ = io.WriteString(w, `{}`)
+				default:
+					http.Error(w, "unexpected request", http.StatusInternalServerError)
+				}
+			})
+			if err := Assignment(context.Background(), client, "flock-php", "flock", []byte(`{"action":"assigned","issue":{"number":73}}`)); err != nil {
+				t.Fatal(err)
+			}
+			assertRequestCount(t, requests, "GET /repos/flock-php/flock/issues/73/comments", 0)
+			want := 0
+			if test.remove {
+				want = 1
+			}
+			assertRequestCount(t, requests, "DELETE /repos/flock-php/flock/issues/73/labels/help wanted", want)
+		})
+	}
+}
+
 func TestAssignmentTreatsMissingCurrentIssueAsNoOp(t *testing.T) {
 	var requests []string
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +263,9 @@ func TestAssignmentTreatsMissingCurrentIssueAsNoOp(t *testing.T) {
 
 func TestTriageSkipsMissingIssueEvent(t *testing.T) {
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		http.Error(w, "unexpected request", http.StatusInternalServerError)
+		return
 	})
 	if err := Triage(context.Background(), client, "flock-php", "flock", []byte(`{"action":"opened"}`)); err != nil {
 		t.Fatal(err)

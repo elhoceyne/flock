@@ -59,7 +59,8 @@ func (s *state) planRelease() {
 	issue := snapshot.issue
 	remainingClaim := contribution.HasAssignedClaimAuthor(issue, remaining) || (len(issue.Assignees) == 0 && len(remaining) != 0)
 	wasClaimed := issue.HasLabel(contribution.ClaimedLabel)
-	if wasClaimed && !remainingClaim && snapshot.assigner == "" && issue.State == "open" &&
+	if ((wasClaimed && snapshot.assigner == "") || (!snapshot.assigned && snapshot.assigner == "github-actions[bot]")) &&
+		!remainingClaim && issue.State == "open" &&
 		len(issue.Assignees) == 0 && !issue.HasLabel(contribution.HelpWantedLabel) {
 		s.changes = append(s.changes, change{
 			kind: changeAddLabel, repository: record.Issue.Repository, number: record.Issue.Number,
