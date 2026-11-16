@@ -16,6 +16,7 @@ on:
 jobs:
     linux-app:
         name: Linux app
+        if: inputs.code == 'true'
         runs-on: ubuntu-24.04
         env:
             CODE: ${{ inputs.code }}
@@ -43,6 +44,7 @@ jobs:
 
     linux:
         name: Linux (${{ matrix.arch }})
+        if: inputs.code == 'true'
         strategy:
             fail-fast: false
             matrix:

@@ -96,6 +96,7 @@ jobs:
         if: needs.find-builds.outputs.run_id == ''
         permissions:
             contents: read
+            pull-requests: read
             # Windows signing's Azure login.
             id-token: write
         uses: ./.github/workflows/ci-build.yml
