@@ -3,7 +3,6 @@ package pr
 import (
 	"context"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -129,7 +128,7 @@ func TestClaimAcceptsIssueAssignedToAuthor(t *testing.T) {
 	}
 }
 
-func TestClaimStopsBeforeLabelChangesWhenAssigneeIsIgnored(t *testing.T) {
+func TestClaimContinuesWhenAssigneeIsIgnored(t *testing.T) {
 	var logs []requestLog
 	client, closeServer := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logs = append(logs, requestLog{r.Method, r.URL.Path})
@@ -148,6 +147,10 @@ func TestClaimStopsBeforeLabelChangesWhenAssigneeIsIgnored(t *testing.T) {
 			writeTestJSON(t, w, `{}`)
 		case "POST /repos/owner/repo/issues/9/assignees":
 			writeTestJSON(t, w, `{"number":9,"state":"open","labels":[{"name":"help wanted"}],"assignees":[]}`)
+		case "POST /repos/owner/repo/issues/9/labels", "POST /repos/owner/repo/issues/1/labels":
+			writeTestJSON(t, w, `[]`)
+		case "DELETE /repos/owner/repo/issues/9/labels/help wanted":
+			writeTestJSON(t, w, `{}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -155,13 +158,13 @@ func TestClaimStopsBeforeLabelChangesWhenAssigneeIsIgnored(t *testing.T) {
 	defer closeServer()
 
 	err := Claim(context.Background(), client, "owner", "repo", testPullRequestEvent("opened", 1, false))
-	if err == nil || !strings.Contains(err.Error(), "assignee was not applied") {
-		t.Fatalf("Claim() error = %v, want assignee not applied", err)
+	if err != nil {
+		t.Fatalf("Claim() error = %v", err)
 	}
-	if containsLog(logs, "POST", "/repos/owner/repo/issues/9/labels") ||
-		containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/labels/help wanted") ||
-		containsLog(logs, "POST", "/repos/owner/repo/issues/1/labels") {
-		t.Fatalf("Claim() changed labels after a dropped assignee: %v", logs)
+	if !containsLog(logs, "POST", "/repos/owner/repo/issues/9/labels") ||
+		!containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/labels/help wanted") ||
+		!containsLog(logs, "POST", "/repos/owner/repo/issues/1/labels") {
+		t.Fatalf("Claim() did not finish the claim after a dropped assignee: %v", logs)
 	}
 }
 

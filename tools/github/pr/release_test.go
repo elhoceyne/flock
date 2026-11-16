@@ -7,6 +7,44 @@ import (
 	"testing"
 )
 
+func TestReleaseRestoresHelpWantedForUnassignedClaim(t *testing.T) {
+	var logs []requestLog
+	client, closeServer := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logs = append(logs, requestLog{r.Method, r.URL.Path})
+		switch r.Method + " " + r.URL.Path {
+		case "GET /repos/owner/repo/pulls/1":
+			writeTestJSON(t, w, `{"number":1,"state":"closed","base":{"ref":"main"},"user":{"login":"author","type":"User"},"author_association":"CONTRIBUTOR"}`)
+		case "GET /repos/owner/repo/issues/1/comments":
+			writeTestJSON(t, w, `[{"id":10,"user":{"login":"github-actions[bot]"},"body":"<!-- pr-gate:claim issue=repo#9 author=author -->"}]`)
+		case "POST /graphql":
+			writeTestJSON(t, w, `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}}`)
+		case "GET /repos/owner/repo/issues/9":
+			writeTestJSON(t, w, `{"number":9,"state":"open","labels":[{"name":"claimed"}],"assignees":[]}`)
+		case "GET /repos/owner/repo/issues/9/comments":
+			writeTestJSON(t, w, `[{"id":11,"user":{"login":"github-actions[bot]"},"body":"<!-- pr-gate:claim pr=1 author=author -->"}]`)
+		case "GET /repos/owner/repo/issues/9/events":
+			writeTestJSON(t, w, `[]`)
+		case "DELETE /repos/owner/repo/issues/comments/11", "DELETE /repos/owner/repo/issues/comments/10",
+			"DELETE /repos/owner/repo/issues/9/labels/claimed":
+			writeTestJSON(t, w, `{}`)
+		case "POST /repos/owner/repo/issues/9/labels":
+			writeTestJSON(t, w, `[]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer closeServer()
+
+	if err := Release(context.Background(), client, "owner", "repo", testPullRequestEvent("closed", 1, false)); err != nil {
+		t.Fatalf("Release() error = %v", err)
+	}
+	if !containsLog(logs, "POST", "/repos/owner/repo/issues/9/labels") ||
+		!containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/labels/claimed") ||
+		containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/assignees") {
+		t.Fatalf("Release() did not restore the unassigned issue: %v", logs)
+	}
+}
+
 func TestReleaseDeletesEveryMarkerAndKeepsHumanAssignee(t *testing.T) {
 	var logs []requestLog
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

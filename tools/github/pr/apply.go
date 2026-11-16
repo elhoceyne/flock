@@ -83,13 +83,9 @@ func (s *state) applyChange(ctx context.Context, change change) error {
 		}
 		return nil
 	case changeAddAssignee:
-		item, _, err := s.client.Issues.AddAssignees(ctx, s.owner, change.repository, change.number, []string{change.user})
+		_, _, err := s.client.Issues.AddAssignees(ctx, s.owner, change.repository, change.number, []string{change.user})
 		if err != nil {
 			return fmt.Errorf("assign issue %s to @%s: %w", change.issue, change.user, err)
-		}
-		issue := contribution.IssueFromGitHub(item)
-		if issue == nil || !issue.HasAssignee(change.user) {
-			return fmt.Errorf("assign issue %s to @%s: assignee was not applied", change.issue, change.user)
 		}
 		return nil
 	case changeRemoveAssignee:

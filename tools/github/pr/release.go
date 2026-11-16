@@ -57,7 +57,16 @@ func (s *state) planRelease() {
 	}
 	snapshot.claims = remaining
 	issue := snapshot.issue
-	if issue.HasLabel(contribution.ClaimedLabel) && !contribution.HasAssignedClaimAuthor(issue, remaining) {
+	remainingClaim := contribution.HasAssignedClaimAuthor(issue, remaining) || (len(issue.Assignees) == 0 && len(remaining) != 0)
+	wasClaimed := issue.HasLabel(contribution.ClaimedLabel)
+	if wasClaimed && !remainingClaim && snapshot.assigner == "" && issue.State == "open" &&
+		len(issue.Assignees) == 0 && !issue.HasLabel(contribution.HelpWantedLabel) {
+		s.changes = append(s.changes, change{
+			kind: changeAddLabel, repository: record.Issue.Repository, number: record.Issue.Number,
+			label: contribution.HelpWantedLabel, issue: record.Issue,
+		})
+	}
+	if wasClaimed && !remainingClaim {
 		s.changes = append(s.changes, change{
 			kind:       changeRemoveLabel,
 			repository: record.Issue.Repository,
@@ -68,7 +77,7 @@ func (s *state) planRelease() {
 		})
 		issue.Labels = withoutLabel(issue.Labels, contribution.ClaimedLabel)
 	}
-	if contribution.HasAssignedClaimAuthor(issue, remaining) {
+	if remainingClaim {
 		s.queueForgetRecord()
 		return
 	}

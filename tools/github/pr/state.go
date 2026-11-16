@@ -137,16 +137,24 @@ func (s *state) approval() (*contribution.IssueReference, *closeReason) {
 			continue
 		}
 		var foreignAuthors []string
+		hasOwnClaim := false
 		for _, claim := range snapshot.claims {
 			if claim.PullRequestNumber != s.event.number {
 				foreignAuthors = appendUnique(foreignAuthors, "@"+claim.Author)
+			} else if s.observed.pullRequest != nil && strings.EqualFold(claim.Author, s.observed.pullRequest.Author.Login) {
+				hasOwnClaim = true
 			}
 		}
 		author := ""
 		if s.observed.pullRequest != nil {
 			author = s.observed.pullRequest.Author.Login
 		}
-		if contribution.IssueApprovalFor(snapshot.issue, author) && (len(snapshot.issue.Assignees) != 0 || len(foreignAuthors) == 0) {
+		approved := contribution.IssueApprovalFor(snapshot.issue, author)
+		if snapshot.issue.State == "open" && !snapshot.issue.IsPullRequest && len(snapshot.issue.Assignees) == 0 &&
+			snapshot.issue.HasLabel(contribution.ClaimedLabel) && hasOwnClaim {
+			approved = true
+		}
+		if approved && (len(snapshot.issue.Assignees) != 0 || len(foreignAuthors) == 0) {
 			result := key
 			return &result, nil
 		}

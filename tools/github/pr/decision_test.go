@@ -30,6 +30,30 @@ func TestApprovalAppliesIssueOwnershipAndClaimPolicy(t *testing.T) {
 			}, claims: []contribution.Claim{{PullRequestNumber: 2, Author: "other"}}},
 		},
 		{
+			name:  "unassigned claim remains approved for its pull request",
+			links: []contribution.LinkedIssue{{Owner: "owner", Repository: "repo", Number: 9}},
+			snapshot: &issueSnapshot{issue: &contribution.Issue{
+				State: "open", Labels: []contribution.Label{{Name: contribution.ClaimedLabel}},
+			}, claims: []contribution.Claim{{PullRequestNumber: 1, Author: "author"}}},
+			want: &contribution.IssueReference{Repository: "repo", Number: 9},
+		},
+		{
+			name:  "unassigned claim does not approve a different pull request",
+			links: []contribution.LinkedIssue{{Owner: "owner", Repository: "repo", Number: 9}},
+			snapshot: &issueSnapshot{issue: &contribution.Issue{
+				State: "open", Labels: []contribution.Label{{Name: contribution.ClaimedLabel}},
+			}, claims: []contribution.Claim{{PullRequestNumber: 2, Author: "author"}}},
+		},
+		{
+			name:  "unassigned claim does not override a maintainer assignment",
+			links: []contribution.LinkedIssue{{Owner: "owner", Repository: "repo", Number: 9}},
+			snapshot: &issueSnapshot{issue: &contribution.Issue{
+				State: "open", Labels: []contribution.Label{{Name: contribution.ClaimedLabel}},
+				Assignees: []contribution.User{{Login: "maintainer"}},
+			}, claims: []contribution.Claim{{PullRequestNumber: 1, Author: "author"}}},
+			denied: true,
+		},
+		{
 			name:  "assigned author can proceed despite another claim",
 			links: []contribution.LinkedIssue{{Owner: "owner", Repository: "repo", Number: 9}},
 			snapshot: &issueSnapshot{issue: &contribution.Issue{
@@ -166,6 +190,33 @@ func TestPlanReleaseRetainsClaimsForMergedPullRequests(t *testing.T) {
 	current.planRelease()
 
 	assertChangeKinds(t, current.changes, nil)
+}
+
+func TestPlanReleaseUnassignedClaims(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		remaining bool
+		want      []changeKind
+	}{
+		{name: "last claim restores help wanted", want: []changeKind{changeDeleteComment, changeAddLabel, changeRemoveLabel, changeDeleteComment}},
+		{name: "remaining claim stays reserved", remaining: true, want: []changeKind{changeDeleteComment, changeDeleteComment}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			current := decisionState()
+			current.observed.pullRequest.State = "closed"
+			current.observed.record = &contribution.ClaimRecord{Issue: contribution.IssueReference{Repository: "repo", Number: 9}, Author: "author", CommentID: 10}
+			claims := []contribution.Claim{{PullRequestNumber: 1, Author: "author", CommentID: 11}}
+			if test.remaining {
+				claims = append(claims, contribution.Claim{PullRequestNumber: 2, Author: "other", CommentID: 12})
+			}
+			current.observed.issues["repo#9"] = &issueSnapshot{
+				issue:  &contribution.Issue{State: "open", Labels: []contribution.Label{{Name: contribution.ClaimedLabel}}},
+				claims: claims, assignment: true,
+			}
+			current.planRelease()
+			assertChangeKinds(t, current.changes, test.want)
+		})
+	}
 }
 
 func decisionState() *state {
