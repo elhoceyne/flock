@@ -32,11 +32,11 @@ jobs:
     steps:
       # pull_request_target runs from the default branch. Check out the same trusted ref; never
       # check out or run pull request code here.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
 

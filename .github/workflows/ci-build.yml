@@ -29,7 +29,7 @@ jobs:
         outputs:
             version: ${{ steps.version.outputs.version }}
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
 
@@ -121,10 +121,10 @@ jobs:
         if: needs.changes.outputs.docs == 'true'
         runs-on: ubuntu-latest
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ github.event.pull_request.head.sha }}
-            -   uses: actions/setup-go@v7
+            -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
             -   name: Check
@@ -153,11 +153,11 @@ jobs:
                         flags: -race
         runs-on: ${{ matrix.platform.os }}
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
 
-            -   uses: actions/setup-go@v7
+            -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
 
@@ -177,10 +177,10 @@ jobs:
         if: github.event_name != 'pull_request' || needs.changes.outputs.notices == 'true' || needs.changes.outputs.translations == 'true'
         runs-on: ubuntu-24.04
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
-            -   uses: actions/setup-go@v7
+            -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
             -   name: Third-party notices
@@ -222,11 +222,11 @@ jobs:
         if: github.event_name != 'pull_request' || needs.changes.outputs.tooling == 'true'
         runs-on: ubuntu-24.04
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
 
-            -   uses: actions/setup-go@v7
+            -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
 

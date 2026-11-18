@@ -19,7 +19,7 @@ jobs:
         if: github.event_name == 'pull_request' && inputs.code == 'true'
         runs-on: macos-26
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref }}
 
@@ -47,11 +47,11 @@ jobs:
             # private half (SPARKLE_PRIVATE_KEY, used by tools/release).
             SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
         steps:
-            -   uses: actions/checkout@v7
+            -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
                 with:
                     ref: ${{ inputs.ref }}
 
-            -   uses: actions/setup-go@v7
+            -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
 
@@ -108,7 +108,7 @@ jobs:
                     macos/build-app.sh
                     mv build/macos/Flock.dmg "build/macos/Flock-$VERSION-macOS.dmg"
 
-            -   uses: actions/upload-artifact@v7
+            -   uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
                 with:
                     name: flock-macos
                     path: build/macos/Flock-*-macOS.dmg
