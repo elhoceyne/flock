@@ -38,7 +38,7 @@ jobs:
             version: ${{ steps.release.outputs.version }}
         steps:
             # Anyone with write access can start a workflow; only admins may release.
-            -   name: Check who started it
+            -   name: Validate Authorized Actor
                 if: github.event_name == 'workflow_dispatch'
                 env:
                     GH_TOKEN: ${{ github.token }}
@@ -107,7 +107,7 @@ jobs:
         secrets: inherit
 
     publish:
-        name: Attach builds to the release
+        name: Attach Release Artifacts
         needs: [ release-please, find-builds, build ]
         if: always() && needs.find-builds.result == 'success' && needs.build.result != 'failure' && needs.build.result != 'cancelled'
         runs-on: ubuntu-latest

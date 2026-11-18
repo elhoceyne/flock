@@ -23,7 +23,7 @@ jobs:
                 with:
                     dotnet-version: 10.0.x
 
-            -   name: Cache NuGet packages
+            -   name: Cache NuGet Packages
                 id: nuget-cache
                 uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -46,7 +46,7 @@ jobs:
                     path: screenshots/*.png
                     if-no-files-found: error
 
-            -   name: Save NuGet packages
+            -   name: Save NuGet Packages
                 if: ${{ !cancelled() && steps.nuget-cache.outcome == 'success' && steps.nuget-cache.outputs.cache-hit != 'true' }}
                 uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -59,7 +59,7 @@ jobs:
         steps:
             -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-            -   name: Cache Swift packages
+            -   name: Cache Swift Packages
                 id: swift-cache
                 uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -81,7 +81,7 @@ jobs:
                     path: screenshots/*.png
                     if-no-files-found: error
 
-            -   name: Save Swift packages
+            -   name: Save Swift Packages
                 if: ${{ !cancelled() && steps.swift-cache.outcome == 'success' && steps.swift-cache.outputs.cache-hit != 'true' }}
                 uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
                 with:

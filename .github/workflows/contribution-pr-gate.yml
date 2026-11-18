@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   gate:
-    name: Approved issue
+    name: Approved Issue
     runs-on: ubuntu-latest
     steps:
       # pull_request_target runs from the default branch. Check out the same trusted ref; never
@@ -40,7 +40,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Pull request
+      - name: Pull Request
         run: go run ./tools/github pr
         env:
           GITHUB_TOKEN: ${{ github.token }}

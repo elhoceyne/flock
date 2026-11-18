@@ -29,7 +29,7 @@ jobs:
             sha: ${{ steps.version.outputs.sha }}
         steps:
             # Anyone with write access can start a workflow; only admins may release.
-            -   name: Check who started it
+            -   name: Validate Authorized Actor
                 env:
                     GH_TOKEN: ${{ github.token }}
                     ACTOR: ${{ github.triggering_actor }}
@@ -40,7 +40,7 @@ jobs:
                       echo "::error::only admins can run this, not $ACTOR ($permission)" && exit 1
                     fi
 
-            -   name: Check the branch
+            -   name: Check Branch
                 env:
                     BRANCH: ${{ github.ref_name }}
                 #language=bash

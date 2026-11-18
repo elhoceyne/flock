@@ -31,7 +31,7 @@ jobs:
             -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
                 with:
                     go-version-file: go.mod
-            -   name: Sync milestone
+            -   name: Sync Milestone
                 env:
                     GITHUB_TOKEN: ${{ github.token }}
                     RELEASE_PR: ${{ inputs.pull_request }}

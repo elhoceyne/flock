@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   gate:
-    name: Maintainer merge
+    name: Maintainer Merge
     runs-on: ubuntu-latest
     permissions:
       contents: read

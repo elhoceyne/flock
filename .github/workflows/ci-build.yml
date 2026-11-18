@@ -163,7 +163,7 @@ jobs:
                     go-version-file: go.mod
                     cache: false
 
-            -   name: Restore Go cache
+            -   name: Restore Go Cache
                 id: go-cache
                 uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -184,7 +184,7 @@ jobs:
                 shell: bash
                 run: go test ${{ matrix.platform.flags }} $(go list ./... | grep -v '^flock/tools/')
 
-            -   name: Save Go cache
+            -   name: Save Go Cache
                 if: ${{ !cancelled() && steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' }}
                 uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -194,7 +194,7 @@ jobs:
                     key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
     generated:
-        name: Generated files
+        name: Generated Files
         needs: changes
         if: github.event_name != 'pull_request' || needs.changes.outputs.notices == 'true' || needs.changes.outputs.translations == 'true'
         runs-on: ubuntu-24.04
@@ -217,7 +217,7 @@ jobs:
 
             # How much of each language is translated, in the job's summary. A pull request that changes
             # the English of an existing key gets a reminder: a new meaning needs a new key (lang/README.md).
-            -   name: Translation status
+            -   name: Translation Status
                 if: github.event_name != 'pull_request' || needs.changes.outputs.translations == 'true'
                 env:
                     BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -239,7 +239,7 @@ jobs:
                     } >> "$GITHUB_STEP_SUMMARY"
 
     tool-test:
-        name: Tool tests
+        name: Tool Tests
         needs: changes
         if: github.event_name != 'pull_request' || needs.changes.outputs.tooling == 'true'
         runs-on: ubuntu-24.04
@@ -254,7 +254,7 @@ jobs:
                     go-version-file: go.mod
                     cache: false
 
-            -   name: Restore Go cache
+            -   name: Restore Go Cache
                 id: go-cache
                 uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
@@ -271,7 +271,7 @@ jobs:
             -   name: Test
                 run: go test ./tools/...
 
-            -   name: Save Go cache
+            -   name: Save Go Cache
                 if: ${{ !cancelled() && steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' }}
                 uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
                 with:
