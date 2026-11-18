@@ -376,6 +376,32 @@ func TestGateReopensDocsOnlyPullRequest(t *testing.T) {
 	}
 }
 
+func TestGateAllowsTranslationsWithoutIssue(t *testing.T) {
+	var logs []requestLog
+	client, closeServer := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logs = append(logs, requestLog{r.Method, r.URL.Path})
+		switch r.Method + " " + r.URL.Path {
+		case "GET /repos/owner/repo/pulls/1":
+			writeTestJSON(t, w, `{"number":1,"state":"open","base":{"ref":"main"},"user":{"login":"author","type":"User"},"author_association":"CONTRIBUTOR"}`)
+		case "GET /repos/owner/repo/pulls/1/files":
+			writeTestJSON(t, w, `[{"filename":"lang/fr/app.json"}]`)
+		case "POST /graphql":
+			writeTestJSON(t, w, `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer closeServer()
+
+	if err := Gate(context.Background(), client, "owner", "repo", testPullRequestEvent("opened", 1, false)); err != nil {
+		t.Fatalf("Gate() error = %v", err)
+	}
+	if countLog(logs, "POST", "/graphql") != 1 || containsLog(logs, "PATCH", "/repos/owner/repo/pulls/1") ||
+		containsLog(logs, "POST", "/repos/owner/repo/issues/1/comments") {
+		t.Fatalf("translation-only requests = %v, want one issue lookup and no changes", logs)
+	}
+}
+
 func TestGateKeepsAssigneePullRequestOpenDespiteForeignClaim(t *testing.T) {
 	var logs []requestLog
 	var commentBody string

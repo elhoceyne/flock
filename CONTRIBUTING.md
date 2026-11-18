@@ -8,7 +8,8 @@ the [security policy](https://github.com/flock-php/.github/blob/main/SECURITY.md
 
 ## Pull requests start with an issue
 
-To make sure work goes into changes that fit the project, every pull request starts with an issue in this repository:
+To make sure work goes into changes that fit the project, pull requests start with an issue in this repository,
+except for changes limited to `docs/` and `lang/`:
 
 1. **Open an issue** describing the bug or idea, or comment on an existing one.
 2. **Wait for approval.** New issues are marked **`needs triage`** while they are reviewed. An approved issue is either
@@ -20,9 +21,9 @@ An issue assigned to someone else isn't available, even if it still has the `hel
 `help wanted` issue receives more than one pull request, the first pull request Flock processes claims it. Flock adds
 the **`claimed`** label to the issue and pull request, removes `help wanted`, and closes the other pull requests.
 
-Pull requests that don't reference an approved issue are closed automatically, with a note explaining why. Once the
-issue is approved, edit the pull request's description to reference it and it reopens by itself. Adding a Development
-sidebar link alone doesn't trigger reopening; edit the description even if the issue is already linked there.
+Pull requests that need an issue but don't reference an approved one are closed automatically, with a note explaining
+why. Once the issue is approved, edit the pull request's description to reference it and it reopens by itself. Adding a
+Development sidebar link alone doesn't trigger reopening; edit the description even if the issue is already linked there.
 
 Flock releases an automatic issue claim when its pull request closes without merging, targets a branch other than
 `main`, or no longer has the issue as a same-repository closing reference. The release removes only the bot's claim
@@ -42,19 +43,19 @@ platforms may be rejected.
 ## Documentation
 
 The documentation at [flockphp.com/docs](https://flockphp.com/docs/quick-start) lives in [`docs/`](docs). A pull request
-that changes only files in `docs/`, such as a typo fix or a clearer explanation, needs no issue: use **Edit this page on
-GitHub** at the bottom of a page, or open a pull request against `main` directly. If it later changes files outside
-`docs/` too, it needs an approved issue like any other.
+that changes only files in `docs/` and `lang/`, such as a typo fix or a clearer explanation, needs no issue. Use
+**Edit this page on GitHub** at the bottom of a page, or open a pull request against `main` directly. If it later changes
+files outside `docs/` and `lang/` too, it needs an approved issue like any other.
 
 The website shows the documentation of released versions only, so a change appears there with the
 next release. A pull request that adds or changes a feature should update its documentation too.
 
 ## Translations
 
-The apps' texts live in [`lang/`](lang), a folder per language. To add or fix translations, first
-find or open an issue and wait for approval. Then edit `lang/<code>/app.json`, or start a new
-language as described in [`lang/README.md`](lang/README.md), run `make i18n`, and open a pull
-request linked to the approved issue.
+The apps' texts live in [`lang/`](lang), a folder per language. To add or fix translations, edit
+`lang/<code>/app.json`, or start a new language as described in [`lang/README.md`](lang/README.md),
+run `make i18n`, and open a pull request against `main`. A pull request that changes only files in
+`lang/` and `docs/` needs no issue. Changes outside those directories need an approved issue.
 
 A pull request that adds or changes a text in an app needs only the English, in `lang/en/app.json`
 under a key; translations are welcome but not required. Changing a text's meaning needs a new

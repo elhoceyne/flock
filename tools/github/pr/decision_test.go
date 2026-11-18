@@ -105,6 +105,21 @@ func TestPlanGateAppliesOnlyRequiredPullRequestStateChanges(t *testing.T) {
 			}},
 		},
 		{
+			name: "translations only pull request stays open",
+			current: &state{owner: "owner", repository: "repo", observed: observed{
+				pullRequest: &contribution.PullRequest{Number: 1, State: "open", BaseRef: "main"},
+				files:       []contribution.File{{Filename: "lang/fr/app.json"}},
+			}},
+		},
+		{
+			name: "translations and code pull request closes",
+			current: &state{owner: "owner", repository: "repo", observed: observed{
+				pullRequest: &contribution.PullRequest{Number: 1, State: "open", BaseRef: "main"},
+				files:       []contribution.File{{Filename: "lang/fr/app.json"}, {Filename: "internal/app.go"}},
+			}},
+			want: []changeKind{changeComment, changePullState},
+		},
+		{
 			name: "wrong base closes the pull request",
 			current: &state{owner: "owner", repository: "repo", observed: observed{
 				pullRequest: &contribution.PullRequest{Number: 1, State: "open", BaseRef: "release"},
@@ -123,11 +138,44 @@ func TestPlanGateAppliesOnlyRequiredPullRequestStateChanges(t *testing.T) {
 			}, decision: decision{approved: &contribution.IssueReference{Repository: "repo", Number: 9}, made: true}},
 			want: []changeKind{changePullState, changeComment},
 		},
+		{
+			name: "gate closed translation pull request reopens after body edit",
+			current: &state{owner: "owner", repository: "repo", event: pullRequestEvent{action: "edited", bodyEdited: true}, observed: observed{
+				pullRequest: &contribution.PullRequest{Number: 1, State: "closed", BaseRef: "main"},
+				files:       []contribution.File{{Filename: "lang/fr/app.json"}},
+				gateClosed:  true,
+			}},
+			want: []changeKind{changePullState, changeComment},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.current.planGate()
 			assertChangeKinds(t, test.current.changes, test.want)
+		})
+	}
+}
+
+func TestExemptFilesOnly(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []contribution.File
+		want  bool
+	}{
+		{name: "empty"},
+		{name: "documentation", files: []contribution.File{{Filename: "docs/guide.md"}}, want: true},
+		{name: "translations", files: []contribution.File{{Filename: "lang/fr/app.json"}}, want: true},
+		{name: "both directories", files: []contribution.File{{Filename: "docs/guide.md"}, {Filename: "lang/fr/app.json"}}, want: true},
+		{name: "rename between exempt directories", files: []contribution.File{{Filename: "lang/file", PreviousFilename: "docs/file"}}, want: true},
+		{name: "rename from outside", files: []contribution.File{{Filename: "lang/file", PreviousFilename: "internal/file"}}},
+		{name: "rename to outside", files: []contribution.File{{Filename: "internal/file", PreviousFilename: "lang/file"}}},
+		{name: "similar prefix", files: []contribution.File{{Filename: "language/file"}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := exemptFilesOnly(test.files); got != test.want {
+				t.Fatalf("exemptFilesOnly() = %v, want %v", got, test.want)
+			}
 		})
 	}
 }

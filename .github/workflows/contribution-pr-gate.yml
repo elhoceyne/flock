@@ -2,8 +2,8 @@
 # and links an open issue in this repository with a closing keyword or the Development sidebar that a maintainer has approved for it.
 # An assigned issue accepts only its assignees. An unassigned `help wanted` issue accepts the
 # first processed referenced PR, which receives durable `claimed` before milestone transfer.
-# A PR that changes only files in docs/ needs no issue; it's checked again on every push, so it
-# can't pick up other changes later.
+# A PR that changes only files in docs/ and lang/ needs no issue; it's checked again on every push,
+# so it can't pick up other changes later.
 # Every other PR from a non-collaborator is closed with a comment pointing at CONTRIBUTING.md.
 # Keep Settings > General > Pull requests at "All users"; this workflow does the gating.
 name: PR gate
@@ -17,7 +17,7 @@ on:
   # out or runs the PR's code.
   pull_request_target:
     # "edited": a PR's base can change after it opens, and a gate-closed PR can add an approved
-    # issue to its description. "synchronize": a docs-only PR can get other changes pushed to it.
+    # issue to its description. "synchronize": an exempt PR can get other changes pushed to it.
     types: [ opened, reopened, edited, synchronize, closed ]
 
 permissions:
