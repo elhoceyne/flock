@@ -99,12 +99,14 @@ jobs:
                           - 'windows/**'
                           - 'linux/**'
                           - 'lang/**'
+                          - 'tools/i18n/**'
                           - '.github/workflows/ci-build.yml'
                         notices:
                           - *go
                           - 'macos/**'
                           - 'windows/**'
                           - 'THIRD_PARTY_NOTICES'
+                          - 'tools/notices/**'
                         tooling:
                           - 'tools/**'
                           - 'go.mod'

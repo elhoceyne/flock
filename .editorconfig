@@ -10,3 +10,9 @@ insert_final_newline = false
 trim_trailing_whitespace = true
 max_line_length = 170
 ij_visual_guides = 150
+
+[Makefile]
+indent_style = tab
+
+[linux/po/*.po]
+insert_final_newline = true
