@@ -14,12 +14,20 @@ jobs:
     windows:
         name: Windows
         runs-on: windows-2025
+        env:
+            NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
         steps:
             -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
             -   uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
                 with:
                     dotnet-version: 10.0.x
+
+            -   name: Cache NuGet packages
+                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: ${{ github.workspace }}/.nuget/packages
+                    key: nuget-${{ runner.os }}-${{ runner.arch }}-Screenshot build-${{ hashFiles('windows/**/*.csproj', 'windows/**/*.props', 'windows/**/*.targets', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
 
             -   name: Render
                 #language=powershell
@@ -42,6 +50,16 @@ jobs:
         runs-on: macos-26
         steps:
             -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+            -   name: Cache Swift packages
+                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        macos/.build/repositories
+                        macos/.build/checkouts
+                        macos/.build/artifacts
+                        macos/.build/workspace-state.json
+                    key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('macos/Package.swift', 'macos/Package.resolved') }}
 
             # A debug build: FlockScreenshots reaches the app's views through @testable import.
             -   name: Render
