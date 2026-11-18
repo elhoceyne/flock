@@ -24,7 +24,8 @@ jobs:
                     ref: ${{ inputs.ref }}
 
             -   name: Cache Swift packages
-                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                id: swift-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
                     path: |
                         macos/.build/repositories
@@ -43,6 +44,17 @@ jobs:
             # Every key in the code is in Localizable.xcstrings, which tools/i18n generates from lang/.
             -   name: Translations
                 run: macos/check-strings.sh
+
+            -   name: Save Swift packages
+                if: ${{ !cancelled() && steps.swift-cache.outcome == 'success' && steps.swift-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        macos/.build/repositories
+                        macos/.build/checkouts
+                        macos/.build/artifacts
+                        macos/.build/workspace-state.json
+                    key: ${{ steps.swift-cache.outputs.cache-primary-key }}
 
     macos:
         name: macOS (Apple silicon)
@@ -66,7 +78,8 @@ jobs:
                     go-version-file: go.mod
 
             -   name: Cache Swift packages
-                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                id: swift-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
                     path: |
                         macos/.build/repositories
@@ -140,3 +153,14 @@ jobs:
                 run: |
                     security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
                     rm -f "$RUNNER_TEMP/notary-key.p8"
+
+            -   name: Save Swift packages
+                if: ${{ !cancelled() && steps.swift-cache.outcome == 'success' && steps.swift-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        macos/.build/repositories
+                        macos/.build/checkouts
+                        macos/.build/artifacts
+                        macos/.build/workspace-state.json
+                    key: ${{ steps.swift-cache.outputs.cache-primary-key }}

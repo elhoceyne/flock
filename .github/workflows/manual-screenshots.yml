@@ -24,7 +24,8 @@ jobs:
                     dotnet-version: 10.0.x
 
             -   name: Cache NuGet packages
-                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                id: nuget-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
                     path: ${{ github.workspace }}/.nuget/packages
                     key: nuget-${{ runner.os }}-${{ runner.arch }}-Screenshot build-${{ hashFiles('windows/**/*.csproj', 'windows/**/*.props', 'windows/**/*.targets', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
@@ -45,6 +46,13 @@ jobs:
                     path: screenshots/*.png
                     if-no-files-found: error
 
+            -   name: Save NuGet packages
+                if: ${{ !cancelled() && steps.nuget-cache.outcome == 'success' && steps.nuget-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: ${{ github.workspace }}/.nuget/packages
+                    key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
+
     macos:
         name: macOS
         runs-on: macos-26
@@ -52,7 +60,8 @@ jobs:
             -   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
             -   name: Cache Swift packages
-                uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+                id: swift-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
                 with:
                     path: |
                         macos/.build/repositories
@@ -71,3 +80,14 @@ jobs:
                     name: screenshots-macos
                     path: screenshots/*.png
                     if-no-files-found: error
+
+            -   name: Save Swift packages
+                if: ${{ !cancelled() && steps.swift-cache.outcome == 'success' && steps.swift-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        macos/.build/repositories
+                        macos/.build/checkouts
+                        macos/.build/artifacts
+                        macos/.build/workspace-state.json
+                    key: ${{ steps.swift-cache.outputs.cache-primary-key }}

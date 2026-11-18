@@ -158,8 +158,21 @@ jobs:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
 
             -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+                id: go
                 with:
                     go-version-file: go.mod
+                    cache: false
+
+            -   name: Restore Go cache
+                id: go-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        ${{ steps.go.outputs.GOCACHE }}
+                        ${{ steps.go.outputs.GOMODCACHE }}
+                    key: go-ci-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ matrix.check }}-${{ github.run_id }}-${{ github.run_attempt }}
+                    restore-keys: |
+                        go-ci-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ matrix.check }}-
 
             -   name: Vet
                 if: matrix.check == 'vet'
@@ -170,6 +183,15 @@ jobs:
                 if: matrix.check == 'test'
                 shell: bash
                 run: go test ${{ matrix.platform.flags }} $(go list ./... | grep -v '^flock/tools/')
+
+            -   name: Save Go cache
+                if: ${{ !cancelled() && steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        ${{ steps.go.outputs.GOCACHE }}
+                        ${{ steps.go.outputs.GOMODCACHE }}
+                    key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
     generated:
         name: Generated files
@@ -227,14 +249,36 @@ jobs:
                     ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
 
             -   uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+                id: go
                 with:
                     go-version-file: go.mod
+                    cache: false
+
+            -   name: Restore Go cache
+                id: go-cache
+                uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        ${{ steps.go.outputs.GOCACHE }}
+                        ${{ steps.go.outputs.GOMODCACHE }}
+                    key: go-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ github.run_id }}-${{ github.run_attempt }}
+                    restore-keys: |
+                        go-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod', 'go.sum') }}-
 
             -   name: Vet
                 run: go vet ./tools/...
 
             -   name: Test
                 run: go test ./tools/...
+
+            -   name: Save Go cache
+                if: ${{ !cancelled() && steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' }}
+                uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+                with:
+                    path: |
+                        ${{ steps.go.outputs.GOCACHE }}
+                        ${{ steps.go.outputs.GOMODCACHE }}
+                    key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
     macos:
         if: github.event_name != 'pull_request' || needs.changes.outputs.macos == 'true'
