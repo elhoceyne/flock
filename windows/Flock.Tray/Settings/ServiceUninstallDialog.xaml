@@ -10,23 +10,17 @@
     PrimaryButtonStyle="{StaticResource AccentButtonStyle}">
     <ContentDialog.Resources>
         <settings:BooleanVisibilityConverter x:Key="BooleanVisibilityConverter" />
-        <SolidColorBrush x:Key="AccentButtonBackground" Color="#C42B1C" />
-        <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#C42B1C" />
-        <SolidColorBrush x:Key="AccentButtonForeground" Color="White" />
-        <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#B22619" />
-        <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#B22619" />
-        <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="White" />
-        <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#A02216" />
-        <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="#A02216" />
-        <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="White" />
     </ContentDialog.Resources>
     <StackPanel Spacing="16">
         <TextBlock Text="{x:Bind Details}" TextWrapping="Wrap" />
         <StackPanel Spacing="4" Visibility="{x:Bind HasData, Converter={StaticResource BooleanVisibilityConverter}}">
             <CheckBox Content="{x:Bind DeleteDataLabel}" IsChecked="{x:Bind DeleteData, Mode=TwoWay}" />
-            <TextBlock Text="{x:Bind DeletionWarning}" Margin="28,-4,0,0" TextWrapping="Wrap"
-                       Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                       Visibility="{x:Bind DeleteData, Converter={StaticResource BooleanVisibilityConverter}}" />
+            <TextBlock Text="{x:Bind DeletionWarning}"
+                       Margin="28,-4,0,0"
+                       TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                       Visibility="{x:Bind DeleteData, Mode=OneWay, Converter={StaticResource BooleanVisibilityConverter}}" />
         </StackPanel>
     </StackPanel>
 </ContentDialog>
