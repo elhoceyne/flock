@@ -7,6 +7,15 @@ import (
 )
 
 func TestRunKeepsUnassignableClaimAndTransfersMilestone(t *testing.T) {
+	for _, association := range []string{"CONTRIBUTOR", "OWNER", "MEMBER", "COLLABORATOR"} {
+		t.Run(association, func(t *testing.T) {
+			testRunKeepsUnassignableClaimAndTransfersMilestone(t, association)
+		})
+	}
+}
+
+func testRunKeepsUnassignableClaimAndTransfersMilestone(t *testing.T, association string) {
+	t.Helper()
 	var logs []requestLog
 	client, closeServer := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logs = append(logs, requestLog{r.Method, r.URL.Path})
@@ -16,7 +25,7 @@ func TestRunKeepsUnassignableClaimAndTransfersMilestone(t *testing.T) {
 			if containsLog(logs, "POST", "/repos/owner/repo/issues/1/labels") {
 				labels = `[{"name":"claimed"}]`
 			}
-			writeTestJSON(t, w, `{"number":1,"state":"open","base":{"ref":"main"},"user":{"login":"author","type":"User"},"author_association":"CONTRIBUTOR","labels":`+labels+`}`)
+			writeTestJSON(t, w, `{"number":1,"state":"open","base":{"ref":"main"},"user":{"login":"author","type":"User"},"author_association":"`+association+`","labels":`+labels+`}`)
 		case "GET /repos/owner/repo/pulls/1/files":
 			writeTestJSON(t, w, `[{"filename":"internal/file.go"}]`)
 		case "POST /graphql":
@@ -69,6 +78,8 @@ func TestRunKeepsUnassignableClaimAndTransfersMilestone(t *testing.T) {
 		}
 	}
 	for _, expected := range []requestLog{
+		{"POST", "/repos/owner/repo/issues/1/comments"},
+		{"POST", "/repos/owner/repo/issues/9/comments"},
 		{"POST", "/repos/owner/repo/issues/9/labels"},
 		{"DELETE", "/repos/owner/repo/issues/9/labels/help wanted"},
 		{"POST", "/repos/owner/repo/issues/1/labels"},

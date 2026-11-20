@@ -101,11 +101,10 @@ func (s *state) plan() {
 		return
 	}
 	s.planRelease()
-	if bypassesGate(s.observed.pullRequest) {
-		return
+	if !bypassesGate(s.observed.pullRequest) {
+		s.planGate()
+		s.planRelease()
 	}
-	s.planGate()
-	s.planRelease()
 	s.planClaim()
 	s.planMilestone()
 }

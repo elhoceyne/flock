@@ -156,6 +156,16 @@ func TestPlanGateAppliesOnlyRequiredPullRequestStateChanges(t *testing.T) {
 	}
 }
 
+func TestPlanDoesNotCloseUnapprovedMaintainerPullRequest(t *testing.T) {
+	current := decisionState()
+	current.observed.pullRequest.AuthorAssociation = "MEMBER"
+	current.observed.files = []contribution.File{{Filename: "internal/file.go"}}
+
+	current.plan()
+
+	assertChangeKinds(t, current.changes, nil)
+}
+
 func TestExemptFilesOnly(t *testing.T) {
 	tests := []struct {
 		name  string
