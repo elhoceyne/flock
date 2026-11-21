@@ -2,6 +2,7 @@ package pr
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"testing"
 )
@@ -73,7 +74,7 @@ func testRunKeepsUnassignableClaimAndTransfersMilestone(t *testing.T, associatio
 	defer closeServer()
 
 	for _, action := range []string{"opened", "synchronize"} {
-		if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent(action, 1, false)); err != nil {
+		if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent(action, 1, false), io.Discard); err != nil {
 			t.Fatalf("Run(%s) error = %v", action, err)
 		}
 	}
@@ -127,7 +128,7 @@ func TestRunReleasesClaimAfterGateClosesStillLinkedPullRequest(t *testing.T) {
 	}))
 	defer closeServer()
 
-	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false)); err != nil {
+	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false), io.Discard); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	closeIndex, releaseIndex := -1, -1
@@ -176,7 +177,7 @@ func TestRunReleasesBotAssignmentAfterGateClosesLinkedClosedIssue(t *testing.T) 
 	}))
 	defer closeServer()
 
-	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false)); err != nil {
+	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false), io.Discard); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/assignees") {
@@ -214,7 +215,7 @@ func TestRunDoesNotRestoreHelpWantedAfterHumanUnassignment(t *testing.T) {
 	}))
 	defer closeServer()
 
-	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("closed", 1, false)); err != nil {
+	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("closed", 1, false), io.Discard); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/assignees") ||
@@ -256,7 +257,7 @@ func TestRunKeepsAssignmentWhenAnotherClaimByTheAuthorRemains(t *testing.T) {
 	}))
 	defer closeServer()
 
-	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("closed", 1, false)); err != nil {
+	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("closed", 1, false), io.Discard); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if containsLog(logs, "DELETE", "/repos/owner/repo/issues/9/assignees") ||
@@ -305,7 +306,7 @@ func TestRunMovesAStaleClaimToAnotherApprovedLinkedIssue(t *testing.T) {
 	}))
 	defer closeServer()
 
-	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false)); err != nil {
+	if err := Run(context.Background(), client, "owner", "repo", testPullRequestEvent("synchronize", 1, false), io.Discard); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !containsLog(logs, "DELETE", "/repos/owner/repo/issues/comments/11") ||

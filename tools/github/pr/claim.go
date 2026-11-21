@@ -32,8 +32,10 @@ func (s *state) planClaim() {
 	s.resolve()
 	target := s.claimTarget()
 	if target == nil {
+		s.status("PR #%d has no eligible issue claim.", s.event.number)
 		return
 	}
+	s.status("PR #%d will claim issue %s.", s.event.number, target)
 	snapshot := s.issue(*target)
 	hasPullRequestClaim := false
 	if snapshot != nil {
