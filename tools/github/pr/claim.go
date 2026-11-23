@@ -55,7 +55,7 @@ func (s *state) planClaim() {
 				"<!-- pr-gate:claim issue=%s author=%s -->\n\nThis pull request claims issue #%d.",
 				*target, pullRequest.Author.Login, target.Number,
 			),
-			issue:      *target,
+			issue: *target,
 		})
 		s.observed.record = &contribution.ClaimRecord{Issue: *target, Author: pullRequest.Author.Login}
 	}
