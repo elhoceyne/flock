@@ -197,6 +197,45 @@ func TestPlanMovesStaleMaintainerClaimToApprovedIssue(t *testing.T) {
 	})
 }
 
+func TestPlanReleasesClaimWhenOpenPullRequestLosesApproval(t *testing.T) {
+	tests := []struct {
+		name        string
+		association string
+		files       []contribution.File
+	}{
+		{"maintainer", "MEMBER", []contribution.File{{Filename: "internal/file.go"}}},
+		{"exempt contributor", "CONTRIBUTOR", []contribution.File{{Filename: "docs/file.md"}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			current := decisionState()
+			current.event.action = "synchronize"
+			current.observed.pullRequest.AuthorAssociation = test.association
+			current.observed.files = test.files
+			current.observed.links = []contribution.LinkedIssue{{Owner: "owner", Repository: "repo", Number: 9}}
+			current.observed.record = &contribution.ClaimRecord{
+				Issue: contribution.IssueReference{Repository: "repo", Number: 9}, Author: "author", CommentID: 10,
+			}
+			current.observed.claimedLabelExists = true
+			current.observed.issues["repo#9"] = &issueSnapshot{
+				issue: &contribution.Issue{
+					State: "open", Assignees: []contribution.User{{Login: "other"}},
+					Labels: []contribution.Label{{Name: contribution.ClaimedLabel}},
+				},
+				milestone: 3,
+				claims:    []contribution.Claim{{PullRequestNumber: 1, Author: "author", CommentID: 11}},
+			}
+
+			current.plan()
+
+			assertChangeKinds(t, current.changes, []changeKind{changeDeleteComment, changeRemoveLabel, changeDeleteComment})
+			if current.observed.pullRequest.State != "open" {
+				t.Fatalf("pull request state = %q, want open", current.observed.pullRequest.State)
+			}
+		})
+	}
+}
+
 func TestExemptFilesOnly(t *testing.T) {
 	tests := []struct {
 		name  string
