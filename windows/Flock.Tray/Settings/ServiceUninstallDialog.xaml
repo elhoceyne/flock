@@ -5,9 +5,7 @@
     xmlns:l="using:Flock.Tray"
     xmlns:settings="using:Flock.Tray.Settings"
     PrimaryButtonText="{l:Loc Key=Common_Uninstall}"
-    CloseButtonText="{l:Loc Key=Common_Cancel}"
-    DefaultButton="None"
-    PrimaryButtonStyle="{StaticResource AccentButtonStyle}">
+    CloseButtonText="{l:Loc Key=Common_Cancel}">
     <ContentDialog.Resources>
         <settings:BooleanVisibilityConverter x:Key="BooleanVisibilityConverter" />
     </ContentDialog.Resources>

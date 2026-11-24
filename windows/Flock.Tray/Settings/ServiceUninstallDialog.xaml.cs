@@ -16,6 +16,7 @@ internal sealed partial class ServiceUninstallDialog : ContentDialog, INotifyPro
         DeletionWarning = deletionWarning ?? "";
         HasData = deleteDataLabel is not null;
         InitializeComponent();
+        Ui.Destructive(this);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
