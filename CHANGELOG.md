@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/flock-php/flock/compare/v1.1.0...v1.1.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **windows:** build the tray tests on the current .NET SDK ([8b65ed7](https://github.com/flock-php/flock/commit/8b65ed75247eeb330000fc2d13a9b5d11fddfca1))
+* **windows:** build the tray tests on the current .NET SDK ([a0e61ac](https://github.com/flock-php/flock/commit/a0e61aca1a3da913074846d1ddf067d20fcca01c))
+
 ## [1.1.0](https://github.com/flock-php/flock/compare/v1.0.0...v1.1.0) (2026-11-24)
 
 
